@@ -1,0 +1,37 @@
+# ============================================================
+# tb3_localizer — localizer_node configuration
+# ============================================================
+# Stage-2 planar localizer: fuse 2D detections + LiDAR → (x,y) in base_link.
+#
+# See semantic_targets.yaml for the canonical name mapping
+# (semantic_name ↔ detector_label ↔ gazebo_model).
+
+localizer_node:
+  ros__parameters:
+    # ── Camera ────────────────────────────────────────────
+    # Horizontal field of view (degrees).  Default Gazebo TurtleBot3 camera
+    # uses a <horizontal_fov> of 1.085595 rad ≈ 62.2°.
+    # Verify: ros2 topic echo /camera/camera_info --once | grep width
+    camera_hfov_deg: 62.2
+
+    # ── LiDAR fusion ──────────────────────────────────────
+    # Number of scan rays on EACH SIDE of the central bearing ray.
+    # Total window = 2 * scan_window_half + 1 rays.
+    # Larger = more robust to noise, but blurs separate nearby objects.
+    scan_window_half: 10             # widened from 5 for bench (wide bbox ~32deg)
+
+    # Valid range bounds (metres). Reject inf/nan and returns outside this band.
+    min_valid_range: 0.12
+    max_valid_range: 5.0             # tightened from 8.0 for 4x6m warehouse
+
+    # ── Topics ────────────────────────────────────────────
+    detections_topic: "/detector_node/detections"
+    scan_topic:       "/scan"
+    image_topic:      "/camera/image_raw"
+    output_topic:     "~/object_points"    # → /localizer_node/object_points
+
+    # ── Output ────────────────────────────────────────────
+    # Frame for published PointStamped messages.
+    # Use "base_link" for Stage-2 MVP (robot-relative).
+    # Future: transform to "map" via TF inside the node or downstream.
+    output_frame: "base_link"

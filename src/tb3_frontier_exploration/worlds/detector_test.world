@@ -1,0 +1,116 @@
+<?xml version="1.0" ?>
+<!--
+  detector_test.world — Minimal Gazebo Classic world for Stage-1/2 perception testing.
+  Purpose: YOLOv8 detector + LiDAR-camera localizer validation.
+           No SLAM, no Nav2, no warehouse walls.
+
+  ═══ Validated Semantic Target Set ═══════════════════════════════════════════
+  All objects match config/semantic_targets.yaml (canonical mapping).
+
+    semantic_name    detector_label    gazebo_model       Placement
+    ─────────────    ──────────────    ────────────       ─────────
+    person           person            person_standing    (2.2,  0.0)  centre
+    table            bench             table_marble       (2.2,  3.0)  left
+    stop sign        stop sign         stop_sign          (2.2, -3.0)  right
+  ═════════════════════════════════════════════════════════════════════════════
+
+  ─── Layout (top view, +X right, +Y up) ───────────────────────────────────
+
+                            +Y (left)
+                              │
+        [table_marble]        │
+           (2.2, 3.0)        │
+                              │
+                              │
+  Robot ──────────────────────┼──────[person_standing]──────→ +X
+  (0, 0)                      │         (2.2, 0.0)
+                              │
+                              │
+        [stop_sign]           │
+          (2.2, -3.0)        │
+                              │
+
+  ──────────────────────────────────────────────────────────────────────────
+
+  Y-axis spacing: 3.0 m between each object (6.0 m total spread).
+  X-axis distance: 2.2 m from robot — close enough for good YOLO detection
+  and reliable LiDAR returns.
+
+  Person is dead-centre for highest detection priority.
+  Table and stop sign are at ±54° from centre — outside the 62° hFOV
+  when the robot faces straight ahead, so use teleop to rotate toward each
+  object for individual testing. Person is always visible without rotation.
+-->
+<sdf version="1.6">
+  <world name="detector_test">
+
+    <!-- Directional sunlight — essential for texture-based YOLO detection -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Flat infinite ground plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Physics: real-time stable -->
+    <physics type="ode">
+      <real_time_factor>1.0</real_time_factor>
+      <max_step_size>0.001</max_step_size>
+    </physics>
+
+    <!-- Bright scene for camera-based detection -->
+    <scene>
+      <ambient>0.6 0.6 0.6 1</ambient>
+      <background>0.8 0.85 0.9 1</background>
+      <shadows>false</shadows>
+    </scene>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         OBJECT 1 — Person
+         semantic_name:    "person"
+         detector_label:   "person"
+         gazebo_model_name: person_standing
+
+         Pose: (2.2, 0, 0) — dead ahead, 2.2 m from robot
+         Yaw: π — person faces the robot for maximum silhouette area
+         ═══════════════════════════════════════════════════════════════ -->
+    <include>
+      <uri>model://person_standing</uri>
+      <name>test_person</name>
+      <pose>2.2 0 0 0 0 3.14159</pose>
+    </include>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         OBJECT 2 — Table
+         semantic_name:    "table"
+         detector_label:   "bench"
+         gazebo_model_name: table_marble
+
+         Pose: (2.2, 3.0, 0) — 3 m to the left
+         table_marble internal pose z=0.648; tabletop ~0.65 m above ground.
+         ═══════════════════════════════════════════════════════════════ -->
+    <include>
+      <uri>model://table_marble</uri>
+      <name>test_table</name>
+      <pose>2.2 3.0 0 0 0 0</pose>
+    </include>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         OBJECT 3 — Stop Sign
+         semantic_name:    "stop sign"
+         detector_label:   "stop sign"
+         gazebo_model_name: stop_sign
+
+         Pose: (2.2, -3.0, 0) — 3 m to the right
+         Replaces old stop_light model (broken materials).
+         ═══════════════════════════════════════════════════════════════ -->
+    <include>
+      <uri>model://stop_sign</uri>
+      <name>test_stop_sign</name>
+      <pose>2.2 -3.0 0 0 0 0</pose>
+    </include>
+
+  </world>
+</sdf>

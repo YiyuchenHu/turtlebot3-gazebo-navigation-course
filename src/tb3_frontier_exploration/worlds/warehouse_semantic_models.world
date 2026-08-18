@@ -1,0 +1,165 @@
+<?xml version="1.0" ?>
+<!--
+  warehouse_semantic_models.world — Gazebo Classic warehouse with real semantic models.
+
+  Same room geometry as warehouse_semantic.world (4 m x 6 m interior),
+  but replaces placeholder cylinders with actual Gazebo mesh models for
+  YOLO-based semantic detection testing.
+
+  Interior (open floor): approximately 4 m (X) x 6 m (Y), centered at origin.
+  Inner faces: x = +/-2, y = +/-3.
+
+  Coordinate layout (top view, +X right, +Y up):
+    Y = +3  ______ north wall ______
+            |                       |
+    X=-2    |   open interior       |    X=+2
+            |                       |
+    Y = -3  ______ south wall ______
+
+  Semantic Target Set (matches config/semantic_targets.yaml):
+
+    semantic_name   detector_label   gazebo_model      Position
+    table           bench            table_marble      ( 0.7,  1.5)
+    stop_sign       stop sign        stop_sign         (-0.8, -2.35)
+    person          person           person_standing   ( 0.6, -2.2)
+
+  Robot spawn: recommended (0, 0) or (-1.2, -1.2) facing +X.
+-->
+<sdf version="1.6">
+  <world name="warehouse_semantic_models">
+
+    <!-- Standard lighting -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Infinite ground plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Physics: stable real-time factor -->
+    <physics type="ode">
+      <real_time_factor>1.0</real_time_factor>
+      <max_step_size>0.001</max_step_size>
+    </physics>
+
+    <!-- Scene ambient -->
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.75 0.8 1</background>
+    </scene>
+
+    <!-- ================================================================
+         WALLS — identical to warehouse_semantic.world
+         Inner clearance: X in [-2, 2], Y in [-3, 3] (4 m x 6 m).
+         Thickness 0.2 m, height 2.5 m.
+         ================================================================ -->
+
+    <model name="wall_east">
+      <static>true</static>
+      <pose>2.1 0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.2 6.4 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.2 6.4 2.5</size></box></geometry>
+          <material>
+            <ambient>0.55 0.55 0.58 1</ambient>
+            <diffuse>0.65 0.65 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-2.1 0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.2 6.4 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.2 6.4 2.5</size></box></geometry>
+          <material>
+            <ambient>0.55 0.55 0.58 1</ambient>
+            <diffuse>0.65 0.65 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_north">
+      <static>true</static>
+      <pose>0 3.1 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>4.4 0.2 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>4.4 0.2 2.5</size></box></geometry>
+          <material>
+            <ambient>0.5 0.52 0.55 1</ambient>
+            <diffuse>0.6 0.62 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_south">
+      <static>true</static>
+      <pose>0 -3.1 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>4.4 0.2 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>4.4 0.2 2.5</size></box></geometry>
+          <material>
+            <ambient>0.5 0.52 0.55 1</ambient>
+            <diffuse>0.6 0.62 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================================================================
+         SEMANTIC OBJECTS — real Gazebo models from ~/.gazebo/models
+         ================================================================ -->
+
+    <!-- Semantic target: table
+         semantic_name:   table
+         detector_label:  bench
+         gazebo_model:    table_marble
+         Position: (0.7, 1.5) — northeast quadrant
+         table_marble has internal pose z=0.648; tabletop ~0.65m high. -->
+    <include>
+      <uri>model://table_marble</uri>
+      <name>semantic_table</name>
+      <pose>0.7 1.5 0 0 0 0</pose>
+    </include>
+
+    <!-- TEMPORARILY DISABLED for 2-target (person+bench) testing.
+         Uncomment the <include> block below to restore stop_sign.
+    <include>
+      <uri>model://stop_sign</uri>
+      <name>semantic_stop_sign</name>
+      <pose>-0.8 -2.35 0 0 0 0</pose>
+    </include>
+    -->
+
+    <!-- Semantic target: person
+         semantic_name:   person
+         detector_label:  person
+         gazebo_model:    person_standing
+         Position: (0.6, -2.2) — southeast quadrant, moved south for better separation from table
+         Yaw: pi — person faces -X (toward room center) for camera visibility. -->
+    <include>
+      <uri>model://person_standing</uri>
+      <name>semantic_person</name>
+      <pose>0.6 -2.2 0 0 0 3.14159</pose>
+    </include>
+
+  </world>
+</sdf>

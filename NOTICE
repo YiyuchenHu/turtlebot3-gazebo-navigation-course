@@ -1,0 +1,79 @@
+NOTICE — Third-party Gazebo models vendored in this repository
+==============================================================
+
+The directory src/tb3_frontier_exploration/models/ contains five Gazebo
+Classic models copied verbatim from a local Gazebo model cache
+(~/.gazebo/models). These models were originally distributed through the
+Gazebo model database (the online library historically fetched by Gazebo
+Classic from models.gazebosim.org, maintained in the OSRF "gazebo_models"
+repository, https://github.com/osrf/gazebo_models). They are vendored here so
+that the simulation works offline on a fresh machine, because the online
+model database is deprecated and slow/unreliable to fetch from.
+
+IMPORTANT — license status: NONE of the five model directories contains a
+bundled LICENSE/COPYING file. The information below is a verbatim
+transcription of each model's model.config metadata (the only
+authorship/licensing-related information shipped inside the model
+directories). No compliance judgement has been made; licensing must be
+reviewed manually before public redistribution. (For reference only: the
+upstream osrf/gazebo_models repository declares its content to be
+Apache License 2.0 / CC-BY 4.0 at repository level, but the vendored copies
+themselves carry no license text.)
+
+----------------------------------------------------------------------
+1. person_standing  (src/tb3_frontier_exploration/models/person_standing)
+----------------------------------------------------------------------
+model.config metadata (verbatim):
+  name:        Standing person
+  version:     1.0
+  author:      Marina Kollmitz <kollmitz@cs.uni-freiburg.de>
+  description: A standing person. Model created with Makehuman
+               (http://www.makehuman.org/)
+Bundled license file: none found in model directory.
+
+----------------------------------------------------------------------
+2. table_marble  (src/tb3_frontier_exploration/models/table_marble)
+----------------------------------------------------------------------
+model.config metadata (verbatim):
+  name:        Table Marble
+  version:     1.0
+  author:      Ian Chen <ichen@osrfoundation.org>
+  description: A marble table lit using a lightmap generated from a
+               directional light with the vector (-0.6, -0.05, -0.8).
+Bundled license file: none found in model directory.
+
+----------------------------------------------------------------------
+3. stop_sign  (src/tb3_frontier_exploration/models/stop_sign)
+----------------------------------------------------------------------
+model.config metadata (verbatim):
+  name:        Stop Sign
+  version:     1.0
+  authors:     Cole Biesemeyer <cole.bsmr@gmail.com>
+               Nate Koenig <natekoenig@gmail.com>
+  description: A stop sign.
+Bundled license file: none found in model directory.
+
+----------------------------------------------------------------------
+4. ground_plane  (src/tb3_frontier_exploration/models/ground_plane)
+----------------------------------------------------------------------
+model.config metadata (verbatim):
+  name:        Ground Plane
+  version:     1.0
+  author:      Nate Koenig <nate@osrfoundation.org>
+  description: A simple ground plane.
+Bundled license file: none found in model directory.
+
+----------------------------------------------------------------------
+5. sun  (src/tb3_frontier_exploration/models/sun)
+----------------------------------------------------------------------
+model.config metadata (verbatim):
+  name:        Sun
+  version:     1.0
+  author:      Nate Koenig <nate@osrfoundation.org>
+  description: A directional light for the sun.
+Bundled license file: none found in model directory.
+
+----------------------------------------------------------------------
+Everything else in this repository (all ROS 2 packages, launch files,
+worlds, configuration, and documentation) is original course material
+covered by the repository LICENSE file (MIT).

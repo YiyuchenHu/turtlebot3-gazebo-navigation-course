@@ -1,0 +1,6 @@
+# Ignore model weight binaries (large files — download locally)
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt

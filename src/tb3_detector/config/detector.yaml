@@ -1,0 +1,40 @@
+# ============================================================
+# tb3_detector  —  detector_node configuration
+# ============================================================
+# All values here are overridable via launch arguments or
+# ros2 run ... --ros-args -p key:=value.
+
+detector_node:
+  ros__parameters:
+    # ── Model ──────────────────────────────────────────────
+    # IMPORTANT: set this to the actual path of your downloaded weights.
+    # Relative paths are resolved from <pkg_share>/models/.
+    # See INSTRUCTIONS.md (repo root) for the download step.
+    model_path: "yolov8n.pt"          # <- filename inside models/ folder
+
+    # ── Inference ──────────────────────────────────────────
+    conf_threshold: 0.12              # lowered from 0.15 for bench edge cases
+    device: "cpu"                     # "cpu" | "cuda:0"
+    enable_tracking: false            # true = ByteTrack; track_id populated
+
+    # ── Class filter ───────────────────────────────────────
+    # List COCO detector_label values from semantic_targets.yaml (validated in sim).
+    # IMPORTANT: use detector_label strings, NOT semantic_name or gazebo_model names.
+    # IMPORTANT: do NOT use bare [] — rclpy Humble cannot infer type from an empty
+    #            YAML list and will crash. Use [""] to accept ALL classes.
+    #
+    #   semantic  →  detector_label  (see config/semantic_targets.yaml)
+    #   table     →  "bench"
+    #   stop_sign →  "stop sign"
+    #   person    →  "person"
+    class_filter: ["bench", "person"]  # "stop sign" temporarily removed — restore for full 3-target testing
+
+    # ── Topics ─────────────────────────────────────────────
+    image_topic:        "/camera/image_raw"
+    camera_info_topic:  "/camera/camera_info"
+    detections_topic:   "~/detections"     # resolves to /detector_node/detections
+    debug_image_topic:  "~/debug_image"    # resolves to /detector_node/debug_image
+
+    # ── Debug ──────────────────────────────────────────────
+    publish_debug_image: true
+    queue_size: 5

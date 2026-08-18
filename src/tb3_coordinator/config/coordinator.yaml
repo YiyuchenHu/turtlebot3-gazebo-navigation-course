@@ -1,0 +1,109 @@
+# ============================================================
+# tb3_coordinator — coordinator_node + semantic_map_memory_node
+# ============================================================
+
+coordinator_node:
+  ros__parameters:
+    user_command_topic:       "/user_command"
+    exploration_enabled_topic: "/exploration_enabled"
+    query_command_topic:      "/semantic_query_node/command"
+    query_result_topic:       "/semantic_query_node/selected_target"
+    goal_pose_topic:          "/nav_goal_adapter_node/goal_pose"
+    status_topic:             "~/status"
+    navigate_to_pose_action:  "navigate_to_pose"
+    nav_goal_timeout_sec:     60.0
+    auto_resume_exploration:  true
+    resume_delay_sec:         3.0
+
+    # ── Perception sweep (disabled by default) ─────────────────
+    # The 360° in-place sweep was originally meant to "kick-start" SLAM by
+    # exposing the surrounding semantics, but in practice spinning in place
+    # provides almost no SLAM benefit (the laser only sees what is already in
+    # line of sight from the current pose) while costing ~18 s and stressing
+    # the TF cache (we observed `Message Filter dropping message` during sweeps).
+    #
+    # The replacement bootstrap strategy now lives in goal_assignment_node:
+    # when exploration is enabled but no valid frontier exists, that node
+    # picks a low-cost point in the global costmap around the robot and
+    # sends it to Nav2. This actually moves the robot, which actually
+    # grows the map.
+    #
+    # Flip this back to `true` to restore the legacy spin behavior.
+    enable_perception_sweep:  false
+
+semantic_map_memory_node:
+  ros__parameters:
+    input_topic:              "/semantic_memory_node/objects"
+    output_topic:             "/semantic_memory_markers"
+    map_topic:                "/map"
+    target_frame:             "map"
+    tf_timeout:               0.3
+    publish_rate:             1.0
+
+    # ── Landmark matching ──────────────────────────────────
+    # Tolerance for "this observation belongs to an existing landmark".
+    # Bumped 0.8 → 1.5 m because in practice a single physical person is
+    # observed from many viewpoints and the projected (x, y) wanders by
+    # 0.3–0.5 m due to:
+    #   * YOLO bbox center ≠ the LiDAR centroid of the person's legs
+    #     (bbox includes arms / clothing → ±0.15 m offset).
+    #   * LDS-01 returns at ankle height bounce off either leg
+    #     depending on angle → ±0.1 m range jitter.
+    #   * SLAM map→odom drift in feature-poor middle of the warehouse
+    #     (LDS-01 range 3.5 m vs 6×10 m room) adds another ±0.3 m.
+    #   * Bot impacts on a `<static>` person model can't move the
+    #     person but momentarily pitch the chassis — pitched LDS rays
+    #     hit the floor, which SLAM rasterizes as fake obstacles, so
+    #     subsequent "snap to nearest island" can pull the projection
+    #     onto a phantom obstacle a meter away from the real person.
+    # 1.5 m is well below the inter-person spacing in the
+    # `warehouse_models_person` world (corner ↔ centre = 4.47 m), so
+    # legitimately separate persons will not be merged.
+    merge_distance:           1.5
+    candidate_merge_distance: 1.5
+
+    # ── Promotion ──────────────────────────────────────────
+    # Generic fallback (any class without a class-specific override
+    # below uses this). Kept at 3 because most non-person classes
+    # (table, stop_sign) appear once per world and small numbers are
+    # fine.
+    min_observations:         3
+
+    # ── Obstacle island search ─────────────────────────────
+    # Search window radius in grid cells around the observation.
+    search_radius_cells:      20
+
+    # Minimum occupancy value (0-100) to consider a cell as obstacle.
+    occupied_threshold:       50
+
+    # Minimum connected pixels for a valid island (1 = accept single pixels).
+    min_island_pixels:        2
+
+    # ── Candidate lifecycle ────────────────────────────────
+    # Seconds before an unconfirmed candidate is discarded.
+    candidate_timeout:        45.0
+
+    # ── Observation quality ───────────────────────────
+    # Reject observations farther than this from robot (in base_link).
+    # Reduces landmark drift from noisy far-distance localizer output.
+    max_observation_range_m:   2.5
+
+    # ── Class-aware gating ────────────────────────────
+    person_max_range_m:        2.5
+    bench_max_range_m:         2.0
+    stop_sign_max_range_m:     1.8
+    # Promotion threshold for `person` candidates. Bumped 3 → 8 to
+    # filter out ghost landmarks created by transient mis-projections
+    # near a real person (typical symptom: a `person_N` with n=4 or
+    # n=5 sitting 0.5–1 m next to a high-confidence `person_M` with
+    # n=50+). Real persons in `warehouse_models_person` accumulate
+    # n ≥ 19 once the bot finishes exploring, so 8 is well below the
+    # natural support of every legitimate landmark.
+    person_min_observations:   8
+    bench_min_observations:    4
+    stop_sign_min_observations: 5
+    wall_boundary_margin_m:   0.20
+
+    # ── Visualization ──────────────────────────────────────
+    sphere_radius:            0.18
+    text_offset_z:            0.45
