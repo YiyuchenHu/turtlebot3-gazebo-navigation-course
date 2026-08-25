@@ -8,8 +8,9 @@ Place YOLOv8 weight files here.
 |----------------|----------|
 | `yolov8n.pt`   | `wget -O src/tb3_detector/models/yolov8n.pt https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt` |
 
-Rebuild (`./build.sh`) after downloading so the weights are copied into the
-install tree, or point the `model_path` parameter at an absolute path.
+Rebuild (`colcon build --packages-select tb3_detector`) after downloading so
+the weights are copied into the install tree, or point the `model_path`
+parameter at an absolute path.
 
 ## Naming convention
 

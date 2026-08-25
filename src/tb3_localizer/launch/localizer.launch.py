@@ -2,8 +2,8 @@
 localizer.launch.py — Launch the Stage-2 planar localizer node.
 
 Usage:
-    ros2 launch tb3_localizer localizer.launch.py
-    ros2 launch tb3_localizer localizer.launch.py use_sim_time:=true
+    ros2 launch tb3_localizer localizer.launch.py                       # sim (default)
+    ros2 launch tb3_localizer localizer.launch.py use_sim_time:=false   # real robot
 """
 import os
 
@@ -20,8 +20,11 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             "use_sim_time",
-            default_value="false",
-            description="Set true when running with Gazebo simulation.",
+            default_value="true",
+            description=(
+                "Course default: Gazebo simulation time. "
+                "Pass false when reusing this node on a real robot."
+            ),
         ),
 
         Node(

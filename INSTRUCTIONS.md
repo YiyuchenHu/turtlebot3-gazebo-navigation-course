@@ -54,7 +54,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 cd ~/turtlebot3-gazebo-navigation-course
 wget -O src/tb3_detector/models/yolov8n.pt \
   https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
-./build.sh   # re-run so the weights are copied into install/
+colcon build --packages-select tb3_detector   # copies the weights into install/
 ```
 
 `*.pt` files are git-ignored on purpose: weights are downloaded, never
@@ -74,6 +74,24 @@ methods contain detailed `TODO(student)` blocks:
 
 The ROS wrapper (`detector_node.py`) needs no changes.
 
+**Your daily development loop touches only Terminal 5** (see the README
+six-terminal table). Everything else keeps running:
+
+1. Edit `detector_core.py`.
+2. In T5: `Ctrl-C`, then re-run the same
+   `ros2 launch tb3_detector detector.launch.py`.
+3. Watch T5's log and the RViz **Detector Debug Image**.
+
+No rebuild is needed for Python edits: the workspace is built with
+`--symlink-install`, so the installed detector code *is* your source
+file. (Rebuilding is only needed when files are added/removed — e.g.
+after downloading the weights in Step 2.)
+
+**Don't touch the `.msg` files** (`src/tb3_query/msg/`). The
+`SemanticQueryResult` message is compiled into three packages
+(`tb3_query`, `tb3_nav_adapter`, `tb3_coordinator`); changing it forces
+a full rebuild and breaks the grader's interface contract.
+
 ### Step 4 — Self-test the detector in isolation
 
 ```bash
@@ -82,7 +100,7 @@ export TURTLEBOT3_MODEL=waffle_pi
 ros2 launch tb3_frontier_exploration detector_test_sim.launch.py
 
 # Terminal 2:
-ros2 launch tb3_detector detector.launch.py use_sim_time:=true
+ros2 launch tb3_detector detector.launch.py
 
 # Terminal 3:
 ros2 topic echo /detector_node/detections
@@ -110,8 +128,11 @@ shows the live mapping.
 
 ### Step 6 — Table and stop sign (second world)
 
+Restart the six-terminal flow, picking the second world in T1 (the other
+terminals are world-agnostic and restart unchanged):
+
 ```bash
-ros2 launch tb3_coordinator full_semantic_nav.launch.py world:=warehouse_models
+ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
 ```
 
 - `go to table` (or `…the bench`) should work immediately — YOLO reports the
@@ -125,8 +146,9 @@ ros2 launch tb3_coordinator full_semantic_nav.launch.py world:=warehouse_models
      `semantic_targets.yaml`.
   3. **Detector filter**: add `"stop sign"` (with the space!) to
      `class_filter` in `src/tb3_detector/config/detector.yaml`.
-  Rebuild (`./build.sh`), relaunch, and try again. This three-file change is
-  part of the assignment — it proves you understand the naming layers
+  Rebuild (`colcon build --packages-select tb3_frontier_exploration tb3_detector`),
+  relaunch, and try again. This three-file change is part of the
+  assignment — it proves you understand the naming layers
   (gazebo_model vs semantic_name vs detector_label).
 
 ## 4. Interface contract (what the grader's stack assumes)
@@ -182,8 +204,10 @@ ros2 launch tb3_coordinator full_semantic_nav.launch.py world:=warehouse_models
 Your implementation passes when, **with your `detector_core.py` as the only
 code change** (plus the three documented stop-sign edits from Step 6):
 
-1. `colcon build` succeeds and `full_semantic_nav.launch.py` runs without
-   node crashes.
+1. `colcon build --symlink-install` succeeds and the stack runs without
+   node crashes — both in the six-terminal flow and via the one-command
+   `full_semantic_nav.launch.py` (README appendix), which is what the
+   grader's batch run uses.
 2. In the default world, after exploration has seen the room:
    `go to person` and `go to person N` (for at least two different observed
    `N`) each end with the coordinator reporting `TARGET_REACHED` and the
@@ -205,8 +229,9 @@ code change** (plus the three documented stop-sign edits from Step 6):
   `/detector_node/detections` → `/localizer_node/localized_objects` →
   `/semantic_memory_node/objects` → `/semantic_map_memory_node/landmark_objects`.
   The first silent topic tells you which stage lost your object.
-- **Runtime statistics overlay**: launch with `use_runtime_debug:=true` to
-  start `semantic_runtime_debug_node`, which logs per-stage counts and
+- **Runtime statistics overlay**: start T3 with
+  `ros2 launch tb3_coordinator course_backend.launch.py use_runtime_debug:=true`
+  to add `semantic_runtime_debug_node`, which logs per-stage counts and
   person/bench confusion diagnostics (CSV under `/tmp/semantic_debug`).
 - **Common pitfalls**
   - `class_filter` entries are COCO **detector labels**: `"bench"`, not
@@ -214,12 +239,15 @@ code change** (plus the three documented stop-sign edits from Step 6):
   - Never write a bare `[]` for `class_filter` in YAML (rclpy Humble
     type-inference crash) — use `[""]` to mean "all classes".
   - Weights added *after* building are not in `install/` until you re-run
-    `./build.sh` (the launch resolves `model_path` from the install tree).
+    `colcon build --packages-select tb3_detector` (the launch resolves
+    `model_path` from the install tree).
   - The camera publishes BEST_EFFORT — if you create your own image
     subscriptions, RELIABLE QoS will silently receive nothing.
   - Confidence too high → the marble table (`bench`, weak detection) never
     appears; too low → ghost landmarks. Start from the shipped 0.12.
-  - Keep `use_sim_time:=true` everywhere (launch files already do this).
+  - Every course launch (T1–T5 and the one-command shell) already
+    defaults to `use_sim_time:=true` — no flag needed in simulation.
+    Only pass `use_sim_time:=false` if you reuse a node on a real robot.
 
 ## 7. Bonus (optional): rewrite the localizer
 

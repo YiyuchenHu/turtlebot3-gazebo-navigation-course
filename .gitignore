@@ -3,9 +3,6 @@ build/
 install/
 log/
 
-# local build marker written by build.sh
-.build_used_system_python
-
 # Python
 __pycache__/
 *.py[cod]

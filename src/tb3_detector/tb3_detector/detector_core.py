@@ -162,9 +162,9 @@ class DetectorCore:
                  https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
 
            The models/ folder git-ignores *.pt on purpose — weights stay
-           local. Rebuild (./build.sh) after downloading so the file is
-           copied into the install tree, or pass an absolute path via
-           model_path.
+           local. Rebuild (colcon build --packages-select tb3_detector)
+           after downloading so the file is copied into the install tree,
+           or pass an absolute path via model_path.
 
         2. Implement loading here:
              - raise RuntimeError with a helpful message if ultralytics is
