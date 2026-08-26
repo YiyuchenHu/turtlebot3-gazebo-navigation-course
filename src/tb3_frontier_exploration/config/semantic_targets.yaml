@@ -39,7 +39,7 @@ semantic_targets:
   - semantic_name:   "stop_sign"
     detector_label:  "stop sign"
     gazebo_model:    "stop_sign"
-    enabled:         false  # temporarily disabled for 2-target testing
+    enabled:         true
     notes: >
       semantic_name uses underscore form "stop_sign" for consistency.
       detector_label remains "stop sign" (COCO label with space).

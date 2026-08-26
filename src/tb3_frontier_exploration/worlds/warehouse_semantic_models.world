@@ -140,14 +140,16 @@
       <pose>0.7 1.5 0 0 0 0</pose>
     </include>
 
-    <!-- TEMPORARILY DISABLED for 2-target (person+bench) testing.
-         Uncomment the <include> block below to restore stop_sign.
+    <!-- Semantic target: stop_sign
+         semantic_name:   stop_sign
+         detector_label:  stop sign   (COCO label, note the space)
+         gazebo_model:    stop_sign
+         Position: (-0.8, -2.35) — southwest quadrant -->
     <include>
       <uri>model://stop_sign</uri>
       <name>semantic_stop_sign</name>
       <pose>-0.8 -2.35 0 0 0 0</pose>
     </include>
-    -->
 
     <!-- Semantic target: person
          semantic_name:   person
