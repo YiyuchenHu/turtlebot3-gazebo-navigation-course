@@ -2,18 +2,13 @@
 """
 detector_node.py  —  ROS 2 node wrapper for Stage-1 YOLOv8 detection.
 
-STUDENT NOTE ───────────────────────────────────────────────────────────────
-This wrapper is PROVIDED and should not need structural changes. It already:
+REFERENCE BRANCH ──────────────────────────────────────────────────────────
+This wrapper is identical to the one students receive on `main`; only the
+stub-specific notices were removed. It:
   - subscribes to the camera,
   - calls DetectorCore.infer() on every frame,
   - converts the returned dicts to vision_msgs/Detection2DArray,
-  - publishes a debug image (raw camera frame until you return detections,
-    then the same frame with boxes drawn on top).
-
-Your work happens in detector_core.py (load() and infer()). As shipped,
-DetectorCore is a stub: this node runs, publishes EMPTY Detection2DArray
-messages on ~/detections, and forwards the raw camera image on ~/debug_image
-so the RViz "Detector Debug Image" panel is alive out of the box.
+  - publishes a debug image with the boxes drawn on top.
 ────────────────────────────────────────────────────────────────────────────
 
 Subscribed topics
@@ -32,8 +27,7 @@ Published topics
         - id                              = track_id or "" if none
 
   ~/debug_image              sensor_msgs/Image   (only if ~publish_debug_image: true)
-      Camera image with bounding-box overlays (raw image while the stub
-      returns no detections).
+      Camera image with bounding-box overlays drawn from the detections.
 
 Parameters
 ----------
@@ -71,12 +65,12 @@ except ImportError as e:
         f"Original error: {e}"
     )
 
-# Local detector logic (same package) — THIS is where the student TODOs live.
+# Local detector logic (same package) — the YOLOv8 wrapper.
 from tb3_detector.detector_core import DetectorCore
 
 
 # ---------------------------------------------------------------------------
-# Helpers (provided — they define the exact wire format of your detections)
+# Helpers — they define the exact wire format of the detections
 # ---------------------------------------------------------------------------
 
 def _make_detection2d_array(detections: list[dict], stamp, frame_id: str) -> Detection2DArray:
@@ -187,7 +181,7 @@ class DetectorNode(Node):
         # class_filter: [""] means "no filter"
         class_filter = [c for c in raw_filter if c.strip()] or None
 
-        # ── Inference core (stub until you implement it) ───────────────────
+        # ── Inference core ─────────────────────────────────────────────────
         self._core = DetectorCore(
             model_path=model_path,
             conf_threshold=conf,
@@ -204,14 +198,6 @@ class DetectorNode(Node):
                 "is yolov8n.pt downloaded into src/tb3_detector/models/?"
             )
             raise
-
-        if not self._core.is_loaded:
-            self.get_logger().warning(
-                "DetectorCore is running as a STUB — publishing EMPTY "
-                "detections and forwarding the raw camera image. Implement "
-                "detector_core.py (see INSTRUCTIONS.md) to make the robot "
-                "actually see objects."
-            )
 
         # ── cv_bridge ──────────────────────────────────────────────────────
         self._bridge = CvBridge()
@@ -259,20 +245,14 @@ class DetectorNode(Node):
         self._latest_camera_info = msg
 
     def _image_callback(self, msg: Image) -> None:
-        """Main callback: convert → infer → publish.
-
-        This pipeline is complete. While DetectorCore is a stub, `detections`
-        is always [], so the published array is empty and the debug image is
-        the raw camera frame — exactly the out-of-the-box behaviour described
-        in the README.
-        """
+        """Main callback: convert → infer → publish."""
         try:
             bgr = self._bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
             self.get_logger().warning("cv_bridge conversion failed: %s" % e)
             return
 
-        # ── Run inference (student code inside DetectorCore.infer) ──────
+        # ── Run inference ───────────────────────────────────────────────
         try:
             detections = self._core.infer(bgr)
         except Exception as e:

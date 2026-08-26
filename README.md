@@ -1,14 +1,26 @@
 # TurtleBot3 Gazebo Navigation Course
 
+> ## ⚠️ REFERENCE BRANCH
+>
+> **This is the REFERENCE branch — the detector is fully implemented.**
+> **The student-facing version lives on `main`.**
+>
+> `tb3_detector/detector_core.py` here contains the completed `load()` and
+> `infer()`. Package names, node names, topic names and every config file are
+> unchanged from `main`; the only other edits are the stub-specific notices in
+> this README and in `detector_node.py`, which no longer describe reality here.
+> Do not hand this branch to students.
+
 A ROS 2 course workspace for **object-based semantic navigation** on a
 simulated TurtleBot3. The full infrastructure is provided and working:
 Gazebo simulation, SLAM, Nav2, autonomous frontier exploration, semantic
 memory, a rule-based command parser, and a coordinator state machine.
 
-**One piece is intentionally missing: the object detector.**
-`tb3_detector` ships as a stub that publishes *empty* detections. Your
-assignment is to implement YOLOv8 inference inside it so that commands like
-`go to person 2` actually drive the robot to a person.
+**One piece is intentionally missing on `main`: the object detector.**
+There, `tb3_detector` ships as a stub that publishes *empty* detections, and
+the assignment is to implement YOLOv8 inference inside it so that commands
+like `go to person 2` actually drive the robot to a person. **On this
+reference branch that implementation is present and the full pipeline runs.**
 
 ➡ **The assignment, interface contract, and acceptance criteria are in
 [INSTRUCTIONS.md](INSTRUCTIONS.md). Start there after the Quick start below.**
@@ -51,7 +63,7 @@ sudo apt install \
   python3-pip
 ```
 
-### pip packages (only needed once you implement the detector)
+### pip packages (required on this branch — the detector imports them)
 
 ```bash
 pip install ultralytics
@@ -102,7 +114,7 @@ before starting the next:
 | T2 | `ros2 launch tb3_coordinator nav.launch.py` | SLAM Toolbox + Nav2 + RViz | Console prints `[lifecycle_manager_navigation]: Managed nodes are active` (~5–10 s); RViz shows a first gray map patch around the robot |
 | T3 | `ros2 launch tb3_coordinator course_backend.launch.py` | Course backend: memory, semantic map memory, query, nav adapter, coordinator, warmup + frontier exploration | `CoordinatorNode ready — mode=EXPLORING` appears immediately; the robot does a short ±45° warm-up scan, then `frontier exploration enabled` (~10 s) and the robot starts exploring |
 | T4 | `ros2 launch tb3_localizer localizer.launch.py` | Localizer (bbox + LiDAR → object position) — bonus unit, yours to rewrite | `LocalizerNode ready` + `Image width learned: 640 px` (~1 s), then quiet until detections arrive |
-| T5 | `ros2 launch tb3_detector detector.launch.py` | **The detector — your assignment.** Stub publishes empty detections until you implement it | `detector_node ready` after a loud STUB warning (~1 s); `ros2 topic echo /detector_node/detections` streams empty `detections: []`; RViz **Detector Debug Image** shows the camera stream |
+| T5 | `ros2 launch tb3_detector detector.launch.py` | **The detector.** On `main` this is the student assignment; here it is the full YOLOv8 implementation | `Model loaded. Classes: [...]` then `detector_node ready` (~3 s, first inference warms up torch); `ros2 topic echo /detector_node/detections` streams non-empty `detections` once an object is in view; RViz **Detector Debug Image** shows green bounding boxes |
 | T6 | *(no launch — your command console)* | Send user commands, watch status | — |
 
 T6 commands:

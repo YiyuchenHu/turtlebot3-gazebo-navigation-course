@@ -1,5 +1,10 @@
 # `tb3_detector` — YOUR ASSIGNMENT PACKAGE
 
+> **⚠️ REFERENCE BRANCH — the detector is fully implemented here.**
+> The text below describes the student-facing package on `main`, where
+> `detector_core.py` is a stub. On this branch `load()` and `infer()` are
+> complete and the node publishes real detections.
+
 `tb3_detector` is Stage 1 of the TurtleBot3 perception pipeline. It answers
 the first perception question:
 

@@ -4,15 +4,11 @@ detector_core.py  —  Stage-1 perception: YOLOv8 inference wrapper.
 
 ████████████████████████████████████████████████████████████████████████████
 ██                                                                        ██
-██   STUDENT ASSIGNMENT — THIS FILE IS THE CORE OF YOUR TASK              ██
+██   REFERENCE IMPLEMENTATION — this is the completed assignment.         ██
 ██                                                                        ██
-██   The rest of the navigation stack (localizer, memory, query, Nav2)    ██
-██   is provided and working. It is waiting for real detections from      ██
-██   this class. Until you implement load() and infer(), the robot        ██
-██   explores and maps fine, but every "go to person" command answers     ██
-██   "no objects in memory".                                              ██
-██                                                                        ██
-██   Read INSTRUCTIONS.md at the repository root before you start.        ██
+██   On the `main` branch this file ships as a stub with TODOs; that is   ██
+██   the version students receive. Here load() and infer() are filled in  ██
+██   so the whole semantic-navigation stack runs end to end.              ██
 ██                                                                        ██
 ████████████████████████████████████████████████████████████████████████████
 
@@ -59,24 +55,23 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# TODO(student) ── Step 0: make ultralytics importable
-# ---------------------------------------------------------------------------
-# Install the Python dependencies (they are NOT apt packages):
+# Optional import — graceful failure if ultralytics is not installed.
+# Keeping this guarded means the package still *builds* without the Python
+# dependencies; load() is where the missing dependency becomes a hard error.
 #
 #     pip install ultralytics
-#     # CPU-only torch (smaller download, sufficient for this course):
 #     pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-#
-# Then uncomment an import here, guarded so the package still builds when
-# ultralytics is missing (see the original pattern below):
-#
-#     try:
-#         from ultralytics import YOLO as _UltralyticsYOLO
-#         _ULTRALYTICS_AVAILABLE = True
-#     except ImportError:
-#         _UltralyticsYOLO = None
-#         _ULTRALYTICS_AVAILABLE = False
 # ---------------------------------------------------------------------------
+try:
+    from ultralytics import YOLO as _UltralyticsYOLO
+    _ULTRALYTICS_AVAILABLE = True
+except ImportError:
+    _UltralyticsYOLO = None
+    _ULTRALYTICS_AVAILABLE = False
+    logger.warning(
+        "ultralytics not found. Install with:  pip install ultralytics\n"
+        "detector_core will raise RuntimeError on load() until then."
+    )
 
 
 # Keys every downstream consumer may rely on:
@@ -85,9 +80,9 @@ DETECTION_KEYS = ("label", "conf", "bbox_xyxy", "track_id")
 
 class DetectorCore:
     """
-    Thin wrapper around a YOLOv8 model.  ***Currently a stub.***
+    Thin wrapper around a YOLOv8 model.
 
-    Usage (once implemented)::
+    Usage::
 
         core = DetectorCore(model_path="models/yolov8n.pt", conf_threshold=0.12)
         core.load()                          # loads weights once at startup
@@ -129,8 +124,8 @@ class DetectorCore:
 
     In this simulation YOLO sees the marble table as a *bench* — do NOT
     expect "dining table" (COCO class 60); it does not fire reliably here.
-    Your DetectorCore must simply report raw COCO labels; the provided
-    downstream nodes translate them using semantic_targets.yaml.
+    DetectorCore simply reports raw COCO labels; the provided downstream
+    nodes translate them using semantic_targets.yaml.
     """
 
     def __init__(
@@ -154,35 +149,32 @@ class DetectorCore:
         """
         Load model weights.  Called once by detector_node at startup.
 
-        ████ TODO(student) ── Step 1: download weights, Step 2: load them ████
+        Raises RuntimeError if ultralytics is missing, FileNotFoundError if
+        the weights file is absent — both with a message the grader can read.
 
-        1. Download the pretrained YOLOv8-nano weights (~6 MB, COCO-80):
+        Weights are git-ignored on purpose; download them with:
 
-               wget -O src/tb3_detector/models/yolov8n.pt \
-                 https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
+            wget -O src/tb3_detector/models/yolov8n.pt \
+              https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
 
-           The models/ folder git-ignores *.pt on purpose — weights stay
-           local. Rebuild (colcon build --packages-select tb3_detector)
-           after downloading so the file is copied into the install tree,
-           or pass an absolute path via model_path.
-
-        2. Implement loading here:
-             - raise RuntimeError with a helpful message if ultralytics is
-               not installed (keep startup errors readable for the grader);
-             - raise FileNotFoundError if self.model_path is missing;
-             - otherwise create the model:  self._model = YOLO(str(self.model_path))
-               and move it to self.device.
-
-        The stub below intentionally does NOT raise, so that the unmodified
-        course repo starts up and publishes empty detections.
+        then rebuild (colcon build --packages-select tb3_detector) so the file
+        is copied into the install tree, or pass an absolute model_path.
         """
-        # TODO(student): replace this stub with real model loading.
-        logger.warning(
-            "DetectorCore.load(): STUB — no model loaded. "
-            "detector_node will publish EMPTY detections until you implement "
-            "DetectorCore (see INSTRUCTIONS.md)."
-        )
-        self._model = None
+        if not _ULTRALYTICS_AVAILABLE:
+            raise RuntimeError(
+                "ultralytics package is not installed. "
+                "Run:  pip install ultralytics"
+            )
+        if not self.model_path.is_file():
+            raise FileNotFoundError(
+                f"Model file not found: {self.model_path}\n"
+                "► See INSTRUCTIONS.md → model download step."
+            )
+
+        logger.info("Loading YOLOv8 model from %s on device=%s", self.model_path, self.device)
+        self._model = _UltralyticsYOLO(str(self.model_path))
+        self._model.to(self.device)
+        logger.info("Model loaded. Classes: %s", list(self._model.names.values()))
 
     # ------------------------------------------------------------------
     def infer(self, bgr_image) -> list[dict]:
@@ -190,37 +182,59 @@ class DetectorCore:
         Run inference on a single BGR uint8 numpy array (shape H×W×3).
 
         Returns a (possibly empty) list of detection dicts, format specified
-        in the module docstring.
+        in the module docstring. Never returns None.
 
-        ████ TODO(student) ── Step 3: implement inference ████
+        ultralytics accepts BGR numpy arrays directly; no colour conversion or
+        resizing is needed, and boxes come back in original-image pixels.
+        """
+        if self._model is None:
+            raise RuntimeError("DetectorCore.load() has not been called yet.")
 
-        Outline (ultralytics does most of the work):
-
+        if self.enable_tracking:
+            results = self._model.track(
+                bgr_image,
+                conf=self.conf_threshold,
+                device=self.device,
+                persist=True,
+                verbose=False,
+            )
+        else:
             results = self._model.predict(
                 bgr_image,
                 conf=self.conf_threshold,
                 device=self.device,
                 verbose=False,
             )
-            for result in results:
-                for each box in result.boxes:
-                    label = result.names[int(box.cls)]     # COCO name, e.g. "person"
-                    ... skip it if self.class_filter is set and label not in it ...
-                    conf  = float(box.conf)
-                    xyxy  = box.xyxy[0].tolist()           # [x1, y1, x2, y2] pixels
-                    ... append {"label": label, "conf": conf,
-                                "bbox_xyxy": xyxy, "track_id": None} ...
 
-        Notes:
-          - ultralytics accepts BGR numpy arrays directly; no colour
-            conversion or resizing is needed (boxes come back in original
-            image pixels).
-          - Return [] when nothing is detected — never None.
-          - Optional: if self.enable_tracking, use self._model.track(...,
-            persist=True) and fill "track_id" from box.id.
-        """
-        # TODO(student): replace this stub with real YOLO inference.
-        return []
+        detections: list[dict] = []
+        for result in results:
+            boxes = result.boxes
+            if boxes is None:
+                continue
+            names = result.names  # int -> str
+
+            for i in range(len(boxes)):
+                label = names[int(boxes.cls[i].item())]
+                if self.class_filter and label not in self.class_filter:
+                    continue
+
+                conf = float(boxes.conf[i].item())
+                xyxy = boxes.xyxy[i].tolist()  # [x1, y1, x2, y2]
+
+                track_id = None
+                if self.enable_tracking and boxes.id is not None:
+                    track_id = int(boxes.id[i].item())
+
+                detections.append(
+                    {
+                        "label":     label,
+                        "conf":      conf,
+                        "bbox_xyxy": xyxy,
+                        "track_id":  track_id,
+                    }
+                )
+
+        return detections
 
     # ------------------------------------------------------------------
     @property
