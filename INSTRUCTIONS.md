@@ -41,7 +41,8 @@ waiting for detections that never come. Your job is to make them come.
 ### Step 1 — Install the Python dependencies
 
 ```bash
-pip install ultralytics
+pip install 'ultralytics==8.4.31'   # pinned: yolo26n needs >=8.4.x;
+                                    # the course is validated on 8.4.31
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
@@ -52,8 +53,8 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 ```bash
 cd ~/turtlebot3-gazebo-navigation-course
-wget -O src/tb3_detector/models/yolov8n.pt \
-  https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
+wget -O src/tb3_detector/models/yolo26n.pt \
+  https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
 colcon build --packages-select tb3_detector   # copies the weights into install/
 ```
 
@@ -95,7 +96,10 @@ a full rebuild and breaks the grader's interface contract.
 ### Step 4 — Self-test the detector in isolation
 
 ```bash
-# Terminal 1: static test world (person + table + stop sign right in front)
+# Terminal 1: static self-test world (person + marble table + stop sign in front).
+# NOTE: this world predates the 2026-08-27 target change and still holds the two
+# retired props. With the shipped class_filter only `person` will be reported;
+# that is enough to prove your infer() works.
 export TURTLEBOT3_MODEL=waffle_pi
 ros2 launch tb3_frontier_exploration detector_test_sim.launch.py
 
@@ -107,10 +111,9 @@ ros2 topic echo /detector_node/detections
 ros2 run rqt_image_view rqt_image_view /detector_node/debug_image
 ```
 
-Expected: boxes labelled `person` and `bench` (the marble table!) with
-sensible confidences; `stop sign` too if you temporarily widen
-`class_filter` (see Step 6). If the debug image shows boxes in the wrong
-place, re-read the pixel-coordinate convention below.
+Expected: a box labelled `person` with a sensible confidence. If the debug
+image shows boxes in the wrong place, re-read the pixel-coordinate
+convention below.
 
 ### Step 5 — Full-stack test (default 5-person world)
 
@@ -126,7 +129,7 @@ IDs `person_0 … person_4` are assigned in **observation order** (they are
 memory slots, not identities). `ros2 topic echo /semantic_map_memory_node/landmark_objects`
 shows the live mapping.
 
-### Step 6 — Table and stop sign (second world)
+### Step 6 — Trash can and chair (second world)
 
 Restart the six-terminal flow, picking the second world in T1 (the other
 terminals are world-agnostic and restart unchanged):
@@ -135,21 +138,32 @@ terminals are world-agnostic and restart unchanged):
 ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
 ```
 
-- `go to table` (or `…the bench`) should work immediately — YOLO reports the
-  marble table as COCO class `bench`, and the provided mapping
-  (`src/tb3_frontier_exploration/config/semantic_targets.yaml`) translates it.
-- The stop sign ships disabled at every layer (a deliberate exercise). To
-  make `go to stop sign` work you must re-enable all three:
-  1. **World**: in `src/tb3_frontier_exploration/worlds/warehouse_semantic_models.world`,
-     uncomment the `<include>` block for `model://stop_sign`.
-  2. **Target registry**: set `enabled: true` for `stop_sign` in
-     `semantic_targets.yaml`.
-  3. **Detector filter**: add `"stop sign"` (with the space!) to
-     `class_filter` in `src/tb3_detector/config/detector.yaml`.
-  Rebuild (`colcon build --packages-select tb3_frontier_exploration tb3_detector`),
-  relaunch, and try again. This three-file change is part of the
-  assignment — it proves you understand the naming layers
-  (gazebo_model vs semantic_name vs detector_label).
+This world holds all three targets — person, trash can, chair — so all three
+commands should work once your `infer()` is correct:
+
+```bash
+ros2 topic pub --once /user_command std_msgs/String "data: 'go to trash can'"
+ros2 topic pub --once /user_command std_msgs/String "data: 'go to chair'"
+```
+
+`go to trash can` is the one to think about. COCO has **no trash-can class**,
+so the detector reports this model as **`traffic light`**, and
+`semantic_targets.yaml` maps `traffic light` → `trash_can`. Your `infer()`
+must report the raw COCO label; if you "helpfully" rename it, the mapping
+breaks. That mapping is the whole reason `semantic_name` and `detector_label`
+are separate fields.
+
+Two targets were retired on 2026-08-27 after measurement, and it is worth
+knowing why — both failures were in the **LiDAR**, not the detector:
+
+| retired | why |
+|---|---|
+| `table` (`table_marble`) | its link is posed at `z=0.648`, so the geometry sits above the 0.121 m scan plane: 6 of 9 test poses returned no LiDAR range at all |
+| `stop_sign` | the pole is too thin — only 16% of the beams in the ±5° window hit it, so the range came from the wall behind and the landmark landed 4.38 m from the real sign |
+
+The lesson generalises: an object is only usable as a landmark if it is
+**both** recognisable to the camera **and** solid to the LiDAR between the
+floor and ~0.3 m.
 
 ## 4. Interface contract (what the grader's stack assumes)
 
@@ -190,19 +204,20 @@ ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
 
 ### Labels and thresholds
 
-- Report **raw COCO labels** (`"person"`, `"bench"`, `"stop sign"`). The
-  task-level names (`person`, `table`, `stop_sign`) are resolved downstream
-  via `semantic_targets.yaml`. In this simulation the marble table is
-  detected as **`bench`** (COCO 13) — *not* `"dining table"`.
-- The shipped `conf_threshold: 0.12` is deliberately low (validated for this
-  Gazebo scene, where the table is a borderline `bench`). Typical values are
-  0.25–0.5; you may tune it in `config/detector.yaml`, but the acceptance
-  test runs with the shipped config.
+- Report **raw COCO labels** (`"person"`, `"traffic light"`, `"chair"`). The
+  task-level names (`person`, `trash_can`, `chair`) are resolved downstream
+  via `semantic_targets.yaml`. Note that the trash can is detected as
+  **`traffic light`** — COCO has no trash-can class.
+- The shipped `conf_threshold: 0.35` was set from a full-stack run. Below it,
+  yolo26n occasionally calls something near the robot a `traffic light` at
+  ~0.30 and plants a phantom trash-can landmark. True positives sit well
+  above: trash can 0.31-0.65, chair p50 0.87, person p50 ~0.9. You may tune it
+  in `config/detector.yaml`, but the acceptance test runs with the shipped config.
 
 ## 5. Acceptance criteria
 
 Your implementation passes when, **with your `detector_core.py` as the only
-code change** (plus the three documented stop-sign edits from Step 6):
+code change**:
 
 1. `colcon build --symlink-install` succeeds and the stack runs without
    node crashes — both in the six-terminal flow and via the one-command
@@ -213,8 +228,11 @@ code change** (plus the three documented stop-sign edits from Step 6):
    `N`) each end with the coordinator reporting `TARGET_REACHED` and the
    robot physically stopped ~0.5 m from the correct person, then exploration
    resumes automatically.
-3. In `world:=warehouse_models`: `go to table` and (after Step 6's config
-   change) `go to stop sign` both reach their targets the same way.
+3. In `world:=warehouse_models`: `go to trash can` and `go to chair` both
+   reach their targets the same way. "Reaches" means the robot ends up
+   within 1.0 m of the real object — a `TARGET_REACHED` on its own is not
+   enough, because Nav2 will happily report success at a mislocalised
+   landmark.
 4. RViz shows your detections live: boxes in the **Detector Debug Image**
    panel and sphere+text landmarks (`/semantic_memory_markers`) on the map.
 5. No interface drift: topic names, message types, and the
@@ -232,10 +250,13 @@ code change** (plus the three documented stop-sign edits from Step 6):
 - **Runtime statistics overlay**: start T3 with
   `ros2 launch tb3_coordinator course_backend.launch.py use_runtime_debug:=true`
   to add `semantic_runtime_debug_node`, which logs per-stage counts and
-  person/bench confusion diagnostics (CSV under `/tmp/semantic_debug`).
+  per-class confusion diagnostics (CSV under `/tmp/semantic_debug`).
 - **Common pitfalls**
-  - `class_filter` entries are COCO **detector labels**: `"bench"`, not
-    `"table"`; `"stop sign"` with a space, not `"stop_sign"`.
+  - `class_filter` entries are COCO **detector labels**: `"traffic light"`,
+    not `"trash_can"`. Multi-word COCO labels contain a space.
+  - Never add `"airplane"` to `class_filter`. yolo26n fires it on many
+    untextured Gazebo props at once, so it cannot identify any single
+    target and will poison your landmarks.
   - Never write a bare `[]` for `class_filter` in YAML (rclpy Humble
     type-inference crash) — use `[""]` to mean "all classes".
   - Weights added *after* building are not in `install/` until you re-run
@@ -243,8 +264,8 @@ code change** (plus the three documented stop-sign edits from Step 6):
     `model_path` from the install tree).
   - The camera publishes BEST_EFFORT — if you create your own image
     subscriptions, RELIABLE QoS will silently receive nothing.
-  - Confidence too high → the marble table (`bench`, weak detection) never
-    appears; too low → ghost landmarks. Start from the shipped 0.12.
+  - Confidence too high → the chair (weakest of the three head-on) never
+    appears; too low → ghost landmarks. Start from the shipped 0.35.
   - Every course launch (T1–T5 and the one-command shell) already
     defaults to `use_sim_time:=true` — no flag needed in simulation.
     Only pass `use_sim_time:=false` if you reuse a node on a real robot.

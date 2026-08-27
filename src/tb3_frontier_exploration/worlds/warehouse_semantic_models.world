@@ -125,37 +125,47 @@
     </model>
 
     <!-- ================================================================
-         SEMANTIC OBJECTS — real Gazebo models from ~/.gazebo/models
+         SEMANTIC OBJECTS — vendored in src/tb3_frontier_exploration/models
+         (see NOTICE for sources and licenses). Object choice and placement
+         distances come from the F1 ablation: every target here is both
+         detectable by yolo26n AND solid to the LDS-01 from 0 to 0.3 m, which
+         table_marble and stop_sign were not.
          ================================================================ -->
 
-    <!-- Semantic target: table
-         semantic_name:   table
-         detector_label:  bench
-         gazebo_model:    table_marble
-         Position: (0.7, 1.5) — northeast quadrant
-         table_marble has internal pose z=0.648; tabletop ~0.65m high. -->
+    <!-- Semantic target: trash_can
+         semantic_name:   trash_can
+         detector_label:  traffic light   (yes, really — see semantic_targets.yaml)
+         gazebo_model:    first_2015_trash_can
+         Position: (0.7, 1.5) — northeast quadrant, where table_marble used to be.
+         F1 ablation: yolo26n p50 0.45 at 1.5 m head-on, 0.42 at 2.0 m;
+         LiDAR beam_hit 1.00 at every pose, range error a constant -0.22 m
+         (= the can's radius), jitter 0.02 m. -->
     <include>
-      <uri>model://table_marble</uri>
-      <name>semantic_table</name>
+      <uri>model://first_2015_trash_can</uri>
+      <name>semantic_trash_can</name>
       <pose>0.7 1.5 0 0 0 0</pose>
     </include>
 
-    <!-- Semantic target: stop_sign
-         semantic_name:   stop_sign
-         detector_label:  stop sign   (COCO label, note the space)
-         gazebo_model:    stop_sign
-         Position: (-0.8, -2.35) — southwest quadrant -->
+    <!-- Semantic target: chair
+         semantic_name:   chair
+         detector_label:  chair
+         gazebo_model:    VisitorChair
+         Position: (-1.3, 2.4) — northwest quadrant. Kept 2.19 m from the trash
+         can so the two never fall inside semantic_map_memory's 1.5 m merge
+         radius. F1 ablation: yolo26n reports COCO class 'chair' at
+         p50 0.52, best viewpoint 3.0 m / 45 deg;
+         LiDAR beam_hit 1.00 with no missing returns at any pose. -->
     <include>
-      <uri>model://stop_sign</uri>
-      <name>semantic_stop_sign</name>
-      <pose>-0.8 -2.35 0 0 0 0</pose>
+      <uri>model://VisitorChair</uri>
+      <name>semantic_chair</name>
+      <pose>-1.3 2.4 0 0 0 -0.9</pose>
     </include>
 
     <!-- Semantic target: person
          semantic_name:   person
          detector_label:  person
          gazebo_model:    person_standing
-         Position: (0.6, -2.2) — southeast quadrant, moved south for better separation from table
+         Position: (0.6, -2.2) — southeast quadrant, well clear of the other two targets
          Yaw: pi — person faces -X (toward room center) for camera visibility. -->
     <include>
       <uri>model://person_standing</uri>

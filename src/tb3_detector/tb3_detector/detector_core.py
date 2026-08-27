@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 # Keeping this guarded means the package still *builds* without the Python
 # dependencies; load() is where the missing dependency becomes a hard error.
 #
-#     pip install ultralytics
+#     pip install 'ultralytics==8.4.31'   # pinned; yolo26n needs >= 8.4.x
 #     pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 # ---------------------------------------------------------------------------
 try:
@@ -69,7 +69,7 @@ except ImportError:
     _UltralyticsYOLO = None
     _ULTRALYTICS_AVAILABLE = False
     logger.warning(
-        "ultralytics not found. Install with:  pip install ultralytics\n"
+        "ultralytics not found. Install with:  pip install 'ultralytics==8.4.31'\n"
         "detector_core will raise RuntimeError on load() until then."
     )
 
@@ -84,7 +84,7 @@ class DetectorCore:
 
     Usage::
 
-        core = DetectorCore(model_path="models/yolov8n.pt", conf_threshold=0.12)
+        core = DetectorCore(model_path="models/yolo26n.pt", conf_threshold=0.35)
         core.load()                          # loads weights once at startup
         detections = core.infer(bgr_image)   # list of dicts (see module docstring)
 
@@ -154,8 +154,8 @@ class DetectorCore:
 
         Weights are git-ignored on purpose; download them with:
 
-            wget -O src/tb3_detector/models/yolov8n.pt \
-              https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
+            wget -O src/tb3_detector/models/yolo26n.pt \
+              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
 
         then rebuild (colcon build --packages-select tb3_detector) so the file
         is copied into the install tree, or pass an absolute model_path.
@@ -163,7 +163,7 @@ class DetectorCore:
         if not _ULTRALYTICS_AVAILABLE:
             raise RuntimeError(
                 "ultralytics package is not installed. "
-                "Run:  pip install ultralytics"
+                "Run:  pip install 'ultralytics==8.4.31'"
             )
         if not self.model_path.is_file():
             raise FileNotFoundError(

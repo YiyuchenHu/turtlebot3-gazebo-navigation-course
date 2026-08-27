@@ -18,11 +18,20 @@ localizer_node:
     # Number of scan rays on EACH SIDE of the central bearing ray.
     # Total window = 2 * scan_window_half + 1 rays.
     # Larger = more robust to noise, but blurs separate nearby objects.
-    scan_window_half: 10             # widened from 5 for bench (wide bbox ~32deg)
+    # Back to 5 (was 10). The widening existed for the bench, whose bbox spanned
+    # ~32 deg; that target is retired. All three current targets are narrow, and
+    # a +/-10 deg window spans 0.67 m at 1.9 m -- wider than the person, so most
+    # rays in it flew past and the median came back as the wall 0.9 m behind her,
+    # which stopped the person landmark from ever forming.
+    scan_window_half: 5
 
     # Valid range bounds (metres). Reject inf/nan and returns outside this band.
-    min_valid_range: 0.12
-    max_valid_range: 5.0             # tightened from 8.0 for 4x6m warehouse
+    min_valid_range: 1.0             # was 0.12; below ~1 m the object fills
+                                     # the frame and yolo26n misclassifies it,
+                                     # planting a landmark on the wrong object
+    max_valid_range: 3.3             # was 5.0; the LDS-01 saturates at 3.5 m
+                                     # and a saturated return is the wall
+                                     # behind the object, not the object
 
     # ── Topics ────────────────────────────────────────────
     detections_topic: "/detector_node/detections"

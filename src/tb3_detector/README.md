@@ -85,7 +85,7 @@ tb3_detector/
 ├── launch/
 │   └── detector.launch.py   ← resolves model_path, starts the node
 ├── models/
-│   └── (yolov8n.pt — you download this; git-ignored)
+│   └── (yolo26n.pt — you download this; git-ignored)
 └── tb3_detector/
     ├── detector_core.py     ← ★ YOUR CODE GOES HERE ★
     └── detector_node.py     ← provided ROS wrapper (no changes needed)
@@ -95,15 +95,16 @@ tb3_detector/
 
 ```bash
 sudo apt install ros-humble-vision-msgs ros-humble-cv-bridge
-pip install ultralytics
+pip install 'ultralytics==8.4.31'   # pinned: yolo26n needs >=8.4.x;
+                                    # the course is validated on 8.4.31
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
 Weights (~6 MB, git-ignored):
 
 ```bash
-wget -O src/tb3_detector/models/yolov8n.pt \
-  https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt
+wget -O src/tb3_detector/models/yolo26n.pt \
+  https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
 ```
 
 ## Standalone testing (without the full stack)

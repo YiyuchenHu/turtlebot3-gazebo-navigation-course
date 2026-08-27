@@ -90,8 +90,8 @@ semantic_map_memory_node:
 
     # ── Class-aware gating ────────────────────────────
     person_max_range_m:        2.5
-    bench_max_range_m:         2.0
-    stop_sign_max_range_m:     1.8
+    chair_max_range_m:         3.2
+    traffic_light_max_range_m: 3.2
     # Promotion threshold for `person` candidates. Bumped 3 → 8 to
     # filter out ghost landmarks created by transient mis-projections
     # near a real person (typical symptom: a `person_N` with n=4 or
@@ -100,8 +100,15 @@ semantic_map_memory_node:
     # n ≥ 19 once the bot finishes exploring, so 8 is well below the
     # natural support of every legitimate landmark.
     person_min_observations:   8
-    bench_min_observations:    4
-    stop_sign_min_observations: 5
+    # chair and trash can (detector label "traffic light") get 12, not 3.
+    # Measured 2026-08-27: when either object sits at the edge of the frame it
+    # is partially clipped and yolo26n swaps the two labels, which planted a
+    # `chair` landmark on the trash can and a `traffic light` landmark on the
+    # chair. Those mistakes stall at ~3 observations while the genuine
+    # landmarks reach n = 50-100, so 12 separates them cleanly and is still far
+    # below the real support.
+    chair_min_observations:    12
+    traffic_light_min_observations: 12
     wall_boundary_margin_m:   0.20
 
     # ── Visualization ──────────────────────────────────────

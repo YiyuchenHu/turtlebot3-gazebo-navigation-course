@@ -104,7 +104,15 @@ _FILLER = frozenset({
 # "person number 3", "person no 5"). Skipped while scanning for the index.
 _INDEX_FILLER = frozenset({"number", "no", "num"})
 
+# Any semantic_name containing an underscore normalizes to TWO tokens
+# ("trash_can" -> "trash can"), which the single-token match in
+# parse_command() can never hit. Such targets MUST be listed here.
 _PHRASE_ALIASES: dict[str, str] = {
+    "trash can": "trash_can",
+    "trashcan": "trash_can",
+    "bin": "trash_can",
+    # retired targets, kept harmless: parse_command() skips any alias whose
+    # canonical name is absent from semantic_targets.yaml.
     "bench": "table",
     "stop sign": "stop_sign",
 }

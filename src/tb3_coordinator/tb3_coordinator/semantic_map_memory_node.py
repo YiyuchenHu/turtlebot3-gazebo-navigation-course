@@ -343,11 +343,11 @@ class SemanticMapMemoryNode(Node):
         self.declare_parameter("bench_cluster_radius_cells", 10)
         self.declare_parameter("max_observation_range_m", 2.5)
         self.declare_parameter("person_max_range_m", 2.5)
-        self.declare_parameter("bench_max_range_m", 2.0)
-        self.declare_parameter("stop_sign_max_range_m", 1.8)
+        self.declare_parameter("chair_max_range_m", 3.2)
+        self.declare_parameter("traffic_light_max_range_m", 3.2)
         self.declare_parameter("person_min_observations", 3)
-        self.declare_parameter("bench_min_observations", 4)
-        self.declare_parameter("stop_sign_min_observations", 5)
+        self.declare_parameter("chair_min_observations", 12)
+        self.declare_parameter("traffic_light_min_observations", 12)
         self.declare_parameter("geometry_check_enabled", True)
         self.declare_parameter("geometry_check_radius_cells", 12)
         self.declare_parameter("person_max_islands", 2)
@@ -378,13 +378,13 @@ class SemanticMapMemoryNode(Node):
 
         self._class_max_range = {
             "person": self.get_parameter("person_max_range_m").value,
-            "bench": self.get_parameter("bench_max_range_m").value,
-            "stop sign": self.get_parameter("stop_sign_max_range_m").value,
+            "chair": self.get_parameter("chair_max_range_m").value,
+            "traffic light": self.get_parameter("traffic_light_max_range_m").value,
         }
         self._class_min_obs = {
             "person": self.get_parameter("person_min_observations").value,
-            "bench": self.get_parameter("bench_min_observations").value,
-            "stop sign": self.get_parameter("stop_sign_min_observations").value,
+            "chair": self.get_parameter("chair_min_observations").value,
+            "traffic light": self.get_parameter("traffic_light_min_observations").value,
         }
 
         self._geom_enabled = self.get_parameter("geometry_check_enabled").value
@@ -551,7 +551,14 @@ class SemanticMapMemoryNode(Node):
         """
         if not self._mutex_enabled:
             return False, ""
-        if label not in ("person", "bench"):
+        # Labels this gate applies to. These are RAW detector labels, so the
+        # trash can appears as "traffic light". Keep every target that can be
+        # confused with another one here: measured 2026-08-27, yolo26n swaps
+        # "chair" and "traffic light" whenever either object sits at the edge of
+        # the frame and is partially clipped, which plants a chair landmark on
+        # the trash can and vice versa. The mutex lets the entry with more
+        # observations win, and the genuine one always has far more.
+        if label not in ("person", "chair", "traffic light"):
             return False, ""
 
         best_blocker = None

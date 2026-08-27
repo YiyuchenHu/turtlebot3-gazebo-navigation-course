@@ -66,12 +66,13 @@ sudo apt install \
 ### pip packages (required on this branch — the detector imports them)
 
 ```bash
-pip install ultralytics
+pip install 'ultralytics==8.4.31'   # pinned: yolo26n needs >=8.4.x;
+                                    # the course is validated on 8.4.31
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
-The Gazebo models used by the course worlds (person, marble table, stop
-sign, …) are **vendored in this repository** (`src/tb3_frontier_exploration/models/`,
+The Gazebo models used by the course worlds (person, trash can, chair, …)
+are **vendored in this repository** (`src/tb3_frontier_exploration/models/`,
 see [NOTICE](NOTICE)) and wired up via `GAZEBO_MODEL_PATH` inside the launch
 files — no online model database access is needed.
 
@@ -177,7 +178,7 @@ Then re-open T1–T5 in order as above. Verify the slate is clean with
 | `world:=` alias | File | Contents | Auto spawn |
 |---|---|---|---|
 | `warehouse_models_person` *(default)* | `warehouse_models_person.world` | 6×6 m room, 5 person figures (corners + centre) | `(-1.5, 0.0)` |
-| `warehouse_models` | `warehouse_semantic_models.world` | 4×6 m room, 1 marble table + 1 person + 1 stop sign | `(-1.2, -1.2)` |
+| `warehouse_models` | `warehouse_semantic_models.world` | 4×6 m room, 1 person + 1 trash can + 1 chair (all three semantic targets) | `(-1.2, -1.2)` |
 
 The world is picked in T1 (everything else is world-agnostic):
 

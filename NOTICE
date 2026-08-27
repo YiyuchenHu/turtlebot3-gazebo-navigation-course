@@ -74,6 +74,62 @@ model.config metadata (verbatim):
 Bundled license file: none found in model directory.
 
 ----------------------------------------------------------------------
+6. VisitorChair  (src/tb3_frontier_exploration/models/VisitorChair)
+----------------------------------------------------------------------
+Source:   https://app.gazebosim.org/OpenRobotics/fuel/models/VisitorChair
+Download: https://fuel.gazebosim.org/1.0/OpenRobotics/models/VisitorChair.zip
+Obtained from Gazebo Fuel, owner OpenRobotics.
+
+License (verbatim as published on Gazebo Fuel):
+  Creative Commons Attribution 4.0 International
+  https://creativecommons.org/licenses/by/4.0/
+
+  "You are free to: Share - copy and redistribute the material in any
+  medium or format; Adapt - remix, transform, and build upon the material
+  for any purpose, even commercially. Under the following terms:
+  Attribution - You must give appropriate credit, provide a link to the
+  license, and indicate if changes were made."
+
+Attribution: VisitorChair by Wan Yi Seow (Open Robotics).
+Changes made: the thumbnails/ directory was removed to reduce repository
+size. The model geometry, materials and model.sdf are unmodified.
+
+model.config metadata (verbatim):
+  name:        VisitorChair
+  version:     1.0
+  author:      Wan Yi Seow <wanyi@openrobotics.org>
+  description: Blue chair for visitors
+
+----------------------------------------------------------------------
+7. first_2015_trash_can  (src/tb3_frontier_exploration/models/first_2015_trash_can)
+----------------------------------------------------------------------
+Source:   https://app.gazebosim.org/OpenRobotics/fuel/models/FIRST%202015%20trash%20can
+Download: https://fuel.gazebosim.org/1.0/OpenRobotics/models/FIRST%202015%20trash%20can.zip
+Obtained from Gazebo Fuel, owner OpenRobotics.
+
+License (verbatim as published on Gazebo Fuel):
+  Creative Commons Zero v1.0 Universal (CC0 1.0 Public Domain Dedication)
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+  "The person who associated a work with this deed has dedicated the work
+  to the public domain by waiving all of his or her rights to the work
+  worldwide under copyright law, including all related and neighboring
+  rights, to the extent allowed by law. You can copy, modify, distribute
+  and perform the work, even for commercial purposes, all without asking
+  permission."
+
+Attribution: not required under CC0; credited here as a courtesy —
+FIRST 2015 trash can by Nate Koenig (Open Robotics).
+Changes made: the thumbnails/ directory was removed to reduce repository
+size. The model geometry, materials and model.sdf are unmodified.
+
+model.config metadata (verbatim):
+  name:        FIRST 2015 trash can
+  version:     1.0
+  author:      Nate Koenig <nate@osrfoundation.org>
+  description: A trash can.
+
+----------------------------------------------------------------------
 Everything else in this repository (all ROS 2 packages, launch files,
 worlds, configuration, and documentation) is original course material
 covered by the repository LICENSE file (MIT).

@@ -195,7 +195,7 @@ class DetectorNode(Node):
             self.get_logger().error("DetectorCore failed to load: %s" % exc)
             self.get_logger().error(
                 "► Check INSTRUCTIONS.md: are ultralytics/torch installed and "
-                "is yolov8n.pt downloaded into src/tb3_detector/models/?"
+                "is yolo26n.pt downloaded into src/tb3_detector/models/?"
             )
             raise
 

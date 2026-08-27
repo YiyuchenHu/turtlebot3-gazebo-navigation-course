@@ -10,10 +10,22 @@ detector_node:
     # IMPORTANT: set this to the actual path of your downloaded weights.
     # Relative paths are resolved from <pkg_share>/models/.
     # See INSTRUCTIONS.md (repo root) for the download step.
-    model_path: "yolov8n.pt"          # <- filename inside models/ folder
+    # yolo26n (ultralytics 8.4.31) replaced yolov8n on 2026-08-27: same CPU
+    # cost at imgsz=640 (36.9 vs 36.1 ms measured over 189 identical frames)
+    # but clearly better on the trash can (p50 0.42 vs 0.33).
+    model_path: "yolo26n.pt"          # <- filename inside models/ folder
 
     # ── Inference ──────────────────────────────────────────
-    conf_threshold: 0.12              # lowered from 0.15 for bench edge cases
+    # 0.35, set from a full-stack run rather than the isolated rig. In-world,
+    # yolo26n twice reported "traffic light" on something 0.36 m from the robot
+    # at conf 0.30 and 0.33, and that was enough to plant a phantom trash-can
+    # landmark right next to the person. The real trash can scores 0.31-0.65 at
+    # 2.5 m, the chair p50 0.87, the person p50 ~0.9, so 0.35 drops both false
+    # positives and still keeps 15 of 18 true trash-can hits -- far above the
+    # 3-8 observations semantic_map_memory needs to confirm a landmark.
+    # (The old 0.12 existed only to scrape the marble table in as a "bench";
+    # that target is gone, so the threshold no longer has to be low.)
+    conf_threshold: 0.35
     device: "cpu"                     # "cpu" | "cuda:0"
     enable_tracking: false            # true = ByteTrack; track_id populated
 
@@ -23,11 +35,16 @@ detector_node:
     # IMPORTANT: do NOT use bare [] — rclpy Humble cannot infer type from an empty
     #            YAML list and will crash. Use [""] to accept ALL classes.
     #
-    #   semantic  →  detector_label  (see config/semantic_targets.yaml)
-    #   table     →  "bench"
-    #   stop_sign →  "stop sign"
-    #   person    →  "person"
-    class_filter: ["bench", "person", "stop sign"]  # detector_label strings — note the space in "stop sign"
+    #   semantic   →  detector_label  (see config/semantic_targets.yaml)
+    #   person     →  "person"
+    #   trash_can  →  "traffic light"   (COCO has no trash-can class)
+    #   chair      →  "chair"
+    #
+    # DO NOT add "airplane". yolo26n fires it on most untextured Gazebo props
+    # (p50 up to 0.51 on a cafe table, 0.34 on a person) and it hits several
+    # different objects at once, so it can never identify one target. This
+    # whitelist is what keeps it out — adding it would poison every landmark.
+    class_filter: ["person", "traffic light", "chair"]
 
     # ── Topics ─────────────────────────────────────────────
     image_topic:        "/camera/image_raw"
