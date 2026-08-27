@@ -1,54 +1,41 @@
 # TurtleBot3 Gazebo Navigation Course
 
-> ## ⚠️ REFERENCE BRANCH
->
-> **This is the REFERENCE branch — the detector is fully implemented.**
-> **The student-facing version lives on `main`.**
->
-> `tb3_detector/detector_core.py` here contains the completed `load()` and
-> `infer()`. Package names, node names, topic names and every config file are
-> unchanged from `main`; the only other edits are the stub-specific notices in
-> this README and in `detector_node.py`, which no longer describe reality here.
-> Do not hand this branch to students.
+> **⚠️ REFERENCE BRANCH — do not hand this to students.** `detector_core.py`
+> here contains the completed `load()` and `infer()`; the student version lives
+> on `main`. Names, topics and configs are identical, so only the stub notices
+> in this README and in `detector_node.py` no longer describe reality.
 
-A ROS 2 course workspace for **object-based semantic navigation** on a
-simulated TurtleBot3. The full infrastructure is provided and working:
-Gazebo simulation, SLAM, Nav2, autonomous frontier exploration, semantic
-memory, a rule-based command parser, and a coordinator state machine.
+A ROS 2 course workspace for **object-based semantic navigation** on a simulated
+TurtleBot3. Gazebo simulation, SLAM, Nav2, autonomous frontier exploration,
+semantic memory, a rule-based command parser and a coordinator state machine are
+all provided and working; the object detector in `tb3_detector` is the piece the
+course asks you to write, and on this branch it is already complete, so the whole
+pipeline runs end to end. The assignment, interface contract and acceptance
+criteria are in **[INSTRUCTIONS.md](INSTRUCTIONS.md)**. Design rationale, measured
+results and advanced debugging notes are in **[NOTES.md](NOTES.md)**.
 
-**One piece is intentionally missing on `main`: the object detector.**
-There, `tb3_detector` ships as a stub that publishes *empty* detections, and
-the assignment is to implement YOLOv8 inference inside it so that commands
-like `go to person 2` actually drive the robot to a person. **On this
-reference branch that implementation is present and the full pipeline runs.**
+## Demo
 
-➡ **The assignment, interface contract, and acceptance criteria are in
-[INSTRUCTIONS.md](INSTRUCTIONS.md). Start there after the Quick start below.**
+Two clips are planned and land in `docs/media/`:
 
-```text
-Gazebo camera ──► tb3_detector (YOUR TASK: YOLOv8, 2D boxes)
-                      │ /detector_node/detections
-Gazebo LiDAR ───► tb3_localizer   (provided: pixel bearing + LiDAR range → (x,y))
-                      ▼
-                  tb3_memory      (provided: stable IDs person_0, person_1, …)
-                      ▼
-                  semantic_map_memory (provided: persistent landmarks on SLAM map)
-                      ▼
-"go to person 2" ► tb3_query      (provided: rule-based command parsing)
-                      ▼
-                  tb3_nav_adapter (provided: standoff approach pose)
-                      ▼
-                  tb3_coordinator + Nav2 (provided: pauses exploration, drives there)
-```
+- **`exploration.gif`** — autonomous frontier exploration mapping the room.
+- **`navigate.gif`** — `go to person 0` interrupting exploration and driving to
+  the target.
+
+<!-- DEMO_PLACEHOLDER: docs/media/exploration.gif -->
+<!-- DEMO_PLACEHOLDER: docs/media/navigate.gif -->
 
 ## System requirements
 
 - Ubuntu 22.04 with **ROS 2 Humble** and **Gazebo Classic 11**
 - A machine that can run Gazebo + Nav2 + SLAM comfortably (4+ CPU cores recommended)
-- **Docker support for macOS: in progress** — for now a native (or VM) Ubuntu
-  22.04 installation is required.
+- `tmux`, for `scripts/acceptance_run.sh` only
 
-### apt packages
+## Installation
+
+### Ubuntu 22.04 (native)
+
+**1. apt packages**
 
 ```bash
 sudo apt install \
@@ -60,25 +47,27 @@ sudo apt install \
   ros-humble-vision-msgs ros-humble-cv-bridge \
   ros-humble-rqt-image-view \
   python3-colcon-common-extensions \
-  python3-pip
+  python3-pip \
+  tmux
 ```
 
-### pip packages (required on this branch — the detector imports them)
+**2. pip packages** (the detector imports them)
 
 ```bash
-pip install 'ultralytics==8.4.31'   # pinned: yolo26n needs >=8.4.x;
-                                    # the course is validated on 8.4.31
+pip install 'ultralytics==8.4.31'
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
-The Gazebo models used by the course worlds (person, trash can, chair, …)
-are **vendored in this repository** (`src/tb3_frontier_exploration/models/`,
-see [NOTICE](NOTICE)) and wired up via `GAZEBO_MODEL_PATH` inside the launch
-files — no online model database access is needed.
+**3. Detector weights** (`yolo26n.pt`, 5.54 MB — `*.pt` is git-ignored, so the
+file is downloaded, never committed)
 
-## Quick start
+```bash
+cd ~/turtlebot3-gazebo-navigation-course
+wget -O src/tb3_detector/models/yolo26n.pt \
+  https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
+```
 
-### 1. Build (once)
+**4. Build**
 
 ```bash
 cd ~/turtlebot3-gazebo-navigation-course
@@ -89,13 +78,35 @@ colcon build --symlink-install
 Two things to know:
 
 - **If you have conda installed, run `conda deactivate` first** (until
-  `(base)` disappears from your prompt). A conda Python shadowing
-  `/usr/bin/python3` breaks colcon and message generation in
-  hard-to-diagnose ways.
+  `(base)` disappears from your prompt).
 - To rebuild a single package later:
   `colcon build --packages-select <pkg>` (e.g. `tb3_detector`).
 
-### 2. Run — one subsystem per terminal
+The Gazebo models used by the course worlds (person, trash can, chair, …)
+are **vendored in this repository** (`src/tb3_frontier_exploration/models/`,
+see [NOTICE](NOTICE)) and wired up via `GAZEBO_MODEL_PATH` inside the launch
+files — no online model database access is needed.
+
+### macOS (Docker) — coming soon
+
+Not available yet; the steps below mirror the Ubuntu skeleton above so the gaps
+are visible. For now use a native or VM Ubuntu 22.04 installation.
+
+- **1. Install Docker Desktop** — TBD
+- **2. Pull the course image** — TBD
+- **3. Detector weights** — TBD
+- **4. Run the container with X11/GUI forwarding** — TBD
+
+### Windows (Docker) — coming soon
+
+Not available yet. For now use a native or VM Ubuntu 22.04 installation.
+
+- **1. Install Docker Desktop + WSL2** — TBD
+- **2. Pull the course image** — TBD
+- **3. Detector weights** — TBD
+- **4. Run the container with X11/GUI forwarding** — TBD
+
+## Running — one subsystem per terminal
 
 In **every** terminal, prepare the environment first:
 
@@ -114,9 +125,9 @@ before starting the next:
 | T1 | `ros2 launch tb3_coordinator sim.launch.py` | Gazebo (server + GUI) + TurtleBot3 spawn, vendored `GAZEBO_MODEL_PATH` | Console prints `Successfully spawned entity [waffle_pi]` and the Gazebo window shows the room + robot (~5 s; first-ever Gazebo start can take longer) |
 | T2 | `ros2 launch tb3_coordinator nav.launch.py` | SLAM Toolbox + Nav2 + RViz | Console prints `[lifecycle_manager_navigation]: Managed nodes are active` (~5–10 s); RViz shows a first gray map patch around the robot |
 | T3 | `ros2 launch tb3_coordinator course_backend.launch.py` | Course backend: memory, semantic map memory, query, nav adapter, coordinator, warmup + frontier exploration | `CoordinatorNode ready — mode=EXPLORING` appears immediately; the robot does a short ±45° warm-up scan, then `frontier exploration enabled` (~10 s) and the robot starts exploring |
-| T4 | `ros2 launch tb3_localizer localizer.launch.py` | Localizer (bbox + LiDAR → object position) — bonus unit, yours to rewrite | `LocalizerNode ready` + `Image width learned: 640 px` (~1 s), then quiet until detections arrive |
-| T5 | `ros2 launch tb3_detector detector.launch.py` | **The detector.** On `main` this is the student assignment; here it is the full YOLOv8 implementation | `Model loaded. Classes: [...]` then `detector_node ready` (~3 s, first inference warms up torch); `ros2 topic echo /detector_node/detections` streams non-empty `detections` once an object is in view; RViz **Detector Debug Image** shows green bounding boxes |
-| T6 | *(no launch — your command console)* | Send user commands, watch status | — |
+| T4 | `ros2 launch tb3_localizer localizer.launch.py` | Localizer (bbox + LiDAR → object position) | `LocalizerNode ready` + `Image width learned: 640 px` (~1 s), then quiet until detections arrive |
+| T5 | `ros2 launch tb3_detector detector.launch.py` | Detector: YOLO inference on the camera image (shipped weights: `yolo26n`) | `Model loaded. Classes: [...]` then `detector_node ready` (~3 s, first inference warms up torch); `ros2 topic echo /detector_node/detections` streams non-empty `detections` once an object is in view; RViz **Detector Debug Image** shows green bounding boxes |
+| T6 | *(no launch — the command console)* | Send user commands, watch status | — |
 
 T6 commands:
 
@@ -125,12 +136,45 @@ ros2 topic pub --once /user_command std_msgs/String "data: 'go to person 0'"
 ros2 topic echo /coordinator_node/status
 ```
 
-Each launch is standalone: starting one without its upstream neighbours
-never crashes — nodes simply wait for data. You can kill and restart any
-single terminal (typically T5 while iterating on the detector) without
-touching the others.
+You can restart any single terminal without touching the others.
 
-### Troubleshooting: clean restart
+### Choosing a world
+
+| `world:=` alias | File | Contents | Auto spawn |
+|---|---|---|---|
+| `warehouse_models_person` *(default)* | `warehouse_models_person.world` | 6×6 m room, 5 person figures (corners + centre) | `(-1.5, 0.0)` |
+| `warehouse_models` | `warehouse_semantic_models.world` | 4×6 m room, 1 person + 1 trash can + 1 chair (all three semantic targets) | `(-1.2, -1.2)` |
+
+The world is picked in T1 (everything else is world-agnostic):
+
+```bash
+ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
+```
+
+An absolute path to a custom `.world` file is also accepted. The same
+`world:=` argument works on the one-command launch below.
+
+### Appendix: one-command launch
+
+For demos and smoke tests:
+
+```bash
+export TURTLEBOT3_MODEL=waffle_pi
+ros2 launch tb3_coordinator full_semantic_nav.launch.py
+```
+
+Give it ~30 s to settle. It forwards `world:=`, `use_rviz:=` and
+`use_runtime_debug:=`. For day-to-day work use the six-terminal flow above.
+
+For an unattended end-to-end acceptance run (clean restart, the six terminals in
+tmux, the navigation commands, and a pass/fail report), run
+[`scripts/acceptance_run.sh`](scripts/acceptance_run.sh). It needs `tmux`, and
+defaults to `--world warehouse_models`, the world holding all three targets;
+`--dry-run` prints the plan without starting anything.
+
+## Troubleshooting
+
+### Clean restart
 
 `Ctrl-C` normally shuts a terminal's launch down cleanly, but a killed
 terminal or a crashed Gazebo can leave orphan processes behind. Symptoms
@@ -159,7 +203,7 @@ and the matching fix, in order:
 Then re-open T1–T5 in order as above. Verify the slate is clean with
 `ros2 node list` (should be empty or error out).
 
-### Troubleshooting: robot spins on the spot and never drives
+### Robot spins on the spot and never drives
 
 **Symptom.** The robot rotates in place indefinitely instead of exploring,
 and T2 repeats:
@@ -175,95 +219,46 @@ Frontier goals keep being accepted, `/cmd_vel` carries a non-zero
 
 **This is not caused by your code.** It is an occasional wedge in the Nav2
 controller/recovery loop; it happens with the reference detector too, and it
-can occur before your detector has published anything at all. Nothing in
+can occur before the detector has published anything at all. Nothing in
 `detector_core.py` can cause it or fix it — the detector is not in the
 control loop.
 
-**Fix.** `Ctrl-C` every terminal and restart with the clean-restart procedure
+**Fix.** `Ctrl-C` every terminal and run the clean-restart procedure
 above, then re-open T1–T5 in order. It clears on restart. The map and any
 landmarks built so far are lost, so the robot re-explores from scratch.
 
 Do **not** try to fix this by lowering `conf_threshold` or widening
-`class_filter` — the two are unrelated, and loosening the detector to chase a
-navigation symptom is how you end up with the ghost landmarks described in
-INSTRUCTIONS.md.
-
-## What works out of the box (before you write any code)
-
-- The robot performs a warm-up rotation, then **explores and maps the room
-  autonomously** (frontier exploration + Nav2 + SLAM).
-- RViz shows the growing map, frontier markers, costmaps, and the
-  **Detector Debug Image** panel — which displays the raw camera stream,
-  because the stub detector forwards it without boxes.
-- Object commands are accepted but **fail gracefully**: the stub publishes
-  empty detections, so semantic memory stays empty and
-  `go to person 0` answers `query failed: no active person in memory`
-  on `/coordinator_node/status`, after which exploration resumes
-  automatically. Once your detector works, the same command drives the
-  robot to the person.
-
-## Choosing a world
-
-| `world:=` alias | File | Contents | Auto spawn |
-|---|---|---|---|
-| `warehouse_models_person` *(default)* | `warehouse_models_person.world` | 6×6 m room, 5 person figures (corners + centre) | `(-1.5, 0.0)` |
-| `warehouse_models` | `warehouse_semantic_models.world` | 4×6 m room, 1 person + 1 trash can + 1 chair (all three semantic targets) | `(-1.2, -1.2)` |
-
-The world is picked in T1 (everything else is world-agnostic):
-
-```bash
-ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
-```
-
-An absolute path to a custom `.world` file is also accepted. The same
-`world:=` argument works on the appendix one-command launch below.
+`class_filter` — they are unrelated; see [NOTES.md](NOTES.md).
 
 ## Repository layout
 
-| Package | Status | Role |
-|---|---|---|
-| `tb3_detector` | **★ assignment (stub)** | YOLOv8 detection on the camera image |
-| `tb3_localizer` | provided | bbox centre → bearing + LiDAR range → `(x, y)` in `base_link` |
-| `tb3_memory` | provided | short-term memory, stable IDs `person_0…` |
-| `tb3_coordinator` | provided | persistent map landmarks, state machine, RViz config, main launch |
-| `tb3_query` | provided | rule-based command parsing (`SemanticQueryResult` msg) |
-| `tb3_nav_adapter` | provided | approach-pose computation for Nav2 |
-| `tb3_frontier_exploration` | provided | frontier detection + goal assignment (C++), worlds, vendored models |
+| Package | Role |
+|---|---|
+| `tb3_detector` | YOLO detection on the camera image (`yolo26n`) |
+| `tb3_localizer` | bbox centre → bearing + LiDAR range → `(x, y)` in `base_link` |
+| `tb3_memory` | short-term memory, stable IDs `person_0…` |
+| `tb3_coordinator` | persistent map landmarks, state machine, RViz config, main launch |
+| `tb3_query` | rule-based command parsing (`SemanticQueryResult` msg) |
+| `tb3_nav_adapter` | approach-pose computation for Nav2 |
+| `tb3_frontier_exploration` | frontier detection + goal assignment (C++), worlds, vendored models |
 
-## Known simplifications (intentional, documented)
+How they fit together:
 
-- **`tb3_nav_adapter` frame assumption**: `compute_approach_pose` treats the
-  target coordinates as if they were robot-relative (robot at the origin),
-  but the configured pipeline feeds it **map-frame** landmarks. The 0.5 m
-  standoff is therefore computed along the *map-origin→target* direction
-  rather than *robot→target*. In these small rooms the map origin equals the
-  spawn pose, so the error is modest and Nav2 still reaches the target —
-  but it is a real simplification worth understanding (and a good discussion
-  point; see the bonus task in INSTRUCTIONS.md).
-- `tb3_frontier_exploration/config/params.yaml` names an
-  `odom_topic: /odometry/filtered` that does not exist in this stack; the
-  exploration nodes actually obtain the robot pose via TF, so the setting is
-  inert. Don't let it mislead you.
-- Landmark IDs (`person_0`, `person_1`, …) are assigned in **observation
-  order** by semantic memory — they are memory slots, not person identities,
-  and the same physical figure can receive a different index across runs.
-
-## Appendix: one-command launch
-
-For demos and smoke tests there is a convenience shell that includes the
-five sub-launches with fixed start-up delays standing in for the
-"wait until ready" steps you perform by hand in the six-terminal flow:
-
-```bash
-export TURTLEBOT3_MODEL=waffle_pi
-ros2 launch tb3_coordinator full_semantic_nav.launch.py
+```text
+Gazebo camera ──► tb3_detector  (YOLO, 2D boxes)
+                      │ /detector_node/detections
+Gazebo LiDAR ───► tb3_localizer   (pixel bearing + LiDAR range → (x,y))
+                      ▼
+                  tb3_memory      (stable IDs person_0, person_1, …)
+                      ▼
+                  semantic_map_memory (persistent landmarks on SLAM map)
+                      ▼
+"go to person 2" ► tb3_query      (rule-based command parsing)
+                      ▼
+                  tb3_nav_adapter (standoff approach pose)
+                      ▼
+                  tb3_coordinator + Nav2 (pauses exploration, drives there)
 ```
-
-Give it ~30 s to settle. It forwards `world:=`, `use_rviz:=` and
-`use_runtime_debug:=`. Everything then shares one terminal's log stream —
-fine for a demo, noisy for development. **For day-to-day work use the
-six-terminal flow above**, which gives each subsystem its own logs and
-lets you restart the detector alone.
 
 ## License
 
