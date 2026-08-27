@@ -8,8 +8,8 @@ config. Start this AFTER the simulation (sim.launch.py) is up: SLAM needs
 lifecycle manager waits on /map to finish configuring.
 
 Usage:
-    ros2 launch tb3_coordinator nav.launch.py
-    ros2 launch tb3_coordinator nav.launch.py use_rviz:=false
+    ros2 launch tb3_bringup nav.launch.py
+    ros2 launch tb3_bringup nav.launch.py use_rviz:=false
 
 Runs standalone — without the simulation it simply waits (lifecycle
 manager logs "Waiting for service ..."), it does not crash.
@@ -70,7 +70,7 @@ def generate_launch_description():
     )
 
     rviz_config = PathJoinSubstitution([
-        FindPackageShare("tb3_coordinator"), "rviz", "semantic_nav.rviz"
+        FindPackageShare("tb3_bringup"), "rviz", "semantic_nav.rviz"
     ])
     rviz_node = Node(
         package="rviz2",

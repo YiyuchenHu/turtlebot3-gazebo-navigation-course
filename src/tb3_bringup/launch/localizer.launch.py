@@ -1,9 +1,9 @@
 """
-localizer.launch.py — Launch the Stage-2 planar localizer node.
+localizer.launch.py — Terminal 4: the Stage-2 planar localizer.
 
 Usage:
-    ros2 launch tb3_localizer localizer.launch.py                       # sim (default)
-    ros2 launch tb3_localizer localizer.launch.py use_sim_time:=false   # real robot
+    ros2 launch tb3_bringup localizer.launch.py                       # sim (default)
+    ros2 launch tb3_bringup localizer.launch.py use_sim_time:=false   # real robot
 """
 import os
 

@@ -40,7 +40,6 @@ install(PROGRAMS
 # via model:// URIs; launch files point GAZEBO_MODEL_PATH at its share copy.
 install(DIRECTORY
   config
-  launch
   worlds
   models
   DESTINATION share/${PROJECT_NAME})

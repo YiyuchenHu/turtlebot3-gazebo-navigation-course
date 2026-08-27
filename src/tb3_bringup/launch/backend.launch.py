@@ -1,5 +1,5 @@
 """
-course_backend.launch.py — Terminal 3: the provided course backend.
+backend.launch.py — Terminal 3: the provided course backend.
 
 Starts every provided node between perception and Nav2 in one shot:
 
@@ -19,8 +19,8 @@ nodes look for the navigate_to_pose action. Started earlier (or alone)
 the nodes just wait and retry — they do not crash.
 
 Usage:
-    ros2 launch tb3_coordinator course_backend.launch.py
-    ros2 launch tb3_coordinator course_backend.launch.py use_runtime_debug:=true
+    ros2 launch tb3_bringup backend.launch.py
+    ros2 launch tb3_bringup backend.launch.py use_runtime_debug:=true
 """
 import os
 

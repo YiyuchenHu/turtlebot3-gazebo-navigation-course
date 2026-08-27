@@ -1,12 +1,15 @@
 """
-detector_test_sim.launch.py — Launch Gazebo with detector_test.world for Stage-1 YOLO testing.
+detector_test.launch.py — Standalone: Gazebo with detector_test.world.
+
+Not part of the six-terminal flow; this is the Stage-1 YOLO self-test
+world from INSTRUCTIONS Step 4.
 
 Usage:
     export TURTLEBOT3_MODEL=burger   # or waffle / waffle_pi
-    ros2 launch tb3_frontier_exploration detector_test_sim.launch.py
+    ros2 launch tb3_bringup detector_test.launch.py
 
 Optional overrides:
-    ros2 launch tb3_frontier_exploration detector_test_sim.launch.py \
+    ros2 launch tb3_bringup detector_test.launch.py \
         x_pose:=0.0 y_pose:=0.0
 """
 import os

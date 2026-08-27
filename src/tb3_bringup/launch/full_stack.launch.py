@@ -1,5 +1,5 @@
 """
-full_semantic_nav.launch.py — one-command convenience shell.
+full_stack.launch.py — Terminals 1-5 in one process (convenience shell).
 
 The RECOMMENDED way to run the course is the six-terminal flow in the
 README Quick start (sim / nav / course_backend / localizer / detector as
@@ -13,7 +13,7 @@ human performs in the six-terminal flow.
 
 Usage:
     export TURTLEBOT3_MODEL=waffle_pi
-    ros2 launch tb3_coordinator full_semantic_nav.launch.py
+    ros2 launch tb3_bringup full_stack.launch.py
 
     # Then in another terminal:
     ros2 topic pub --once /user_command std_msgs/String "data: 'go to person 0'"
@@ -38,16 +38,12 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time", default="true")
 
-    coord_launch = os.path.join(
-        get_package_share_directory("tb3_coordinator"), "launch")
-    loc_launch = os.path.join(
-        get_package_share_directory("tb3_localizer"), "launch")
-    det_launch = os.path.join(
-        get_package_share_directory("tb3_detector"), "launch")
+    bringup_launch = os.path.join(
+        get_package_share_directory("tb3_bringup"), "launch")
 
     sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(coord_launch, "sim.launch.py")),
+            os.path.join(bringup_launch, "sim.launch.py")),
         launch_arguments={
             "use_sim_time": use_sim_time,
             "world": LaunchConfiguration("world"),
@@ -58,7 +54,7 @@ def generate_launch_description():
 
     nav = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(coord_launch, "nav.launch.py")),
+            os.path.join(bringup_launch, "nav.launch.py")),
         launch_arguments={
             "use_sim_time": use_sim_time,
             "use_rviz": LaunchConfiguration("use_rviz"),
@@ -67,19 +63,19 @@ def generate_launch_description():
 
     localizer = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(loc_launch, "localizer.launch.py")),
+            os.path.join(bringup_launch, "localizer.launch.py")),
         launch_arguments={"use_sim_time": use_sim_time}.items(),
     )
 
     detector = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(det_launch, "detector.launch.py")),
+            os.path.join(bringup_launch, "detector.launch.py")),
         launch_arguments={"use_sim_time": use_sim_time}.items(),
     )
 
     backend = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(coord_launch, "course_backend.launch.py")),
+            os.path.join(bringup_launch, "backend.launch.py")),
         launch_arguments={
             "use_sim_time": use_sim_time,
             "use_runtime_debug": LaunchConfiguration("use_runtime_debug"),

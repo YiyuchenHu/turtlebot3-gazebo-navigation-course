@@ -208,19 +208,19 @@ class Terminal:
 
 TERMINALS: Tuple[Terminal, ...] = (
     Terminal("T1", "Gazebo + TurtleBot3 spawn",
-             "ros2 launch tb3_coordinator sim.launch.py world:={world}",
+             "ros2 launch tb3_bringup sim.launch.py world:={world}",
              ("Successfully spawned entity [waffle_pi]",), 180.0),
     Terminal("T2", "SLAM Toolbox + Nav2 + RViz",
-             "ros2 launch tb3_coordinator nav.launch.py",
+             "ros2 launch tb3_bringup nav.launch.py",
              ("lifecycle_manager_navigation", "Managed nodes are active"), 180.0),
     Terminal("T3", "Course backend (memory, query, coordinator, exploration)",
-             "ros2 launch tb3_coordinator course_backend.launch.py",
+             "ros2 launch tb3_bringup backend.launch.py",
              ("CoordinatorNode ready",), 120.0),
     Terminal("T4", "Localizer (bbox + LiDAR -> object position)",
-             "ros2 launch tb3_localizer localizer.launch.py",
+             "ros2 launch tb3_bringup localizer.launch.py",
              ("LocalizerNode ready",), 90.0),
     Terminal("T5", "Detector (YOLO inference on the camera image)",
-             "ros2 launch tb3_detector detector.launch.py",
+             "ros2 launch tb3_bringup detector.launch.py",
              ("detector_node ready",), 300.0),
 )
 

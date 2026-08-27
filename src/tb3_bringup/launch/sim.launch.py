@@ -7,8 +7,8 @@ and the TurtleBot3 spawn. Sets GAZEBO_MODEL_PATH so the vendored models
 
 Usage:
     export TURTLEBOT3_MODEL=waffle_pi
-    ros2 launch tb3_coordinator sim.launch.py
-    ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
+    ros2 launch tb3_bringup sim.launch.py
+    ros2 launch tb3_bringup sim.launch.py world:=warehouse_models
 
 Runs standalone — no SLAM/Nav2/course nodes are started here.
 """

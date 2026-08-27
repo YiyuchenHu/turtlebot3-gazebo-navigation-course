@@ -6,8 +6,8 @@ Subscribes to the detector, localizer, and memory topics without modifying any
 existing node.  Periodically prints a concise summary and optionally writes a
 CSV log for offline analysis.
 
-Launch together with full_semantic_nav.launch.py:
-    ros2 launch tb3_coordinator full_semantic_nav.launch.py use_runtime_debug:=true
+Launch together with full_stack.launch.py:
+    ros2 launch tb3_bringup full_stack.launch.py use_runtime_debug:=true
 """
 
 import csv
