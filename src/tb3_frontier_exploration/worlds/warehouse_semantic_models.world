@@ -2,7 +2,7 @@
 <!--
   warehouse_semantic_models.world — Gazebo Classic warehouse with real semantic models.
 
-  Same room geometry as warehouse_semantic.world (4 m x 6 m interior),
+  Room geometry: 4 m x 6 m interior,
   but replaces placeholder cylinders with actual Gazebo mesh models for
   YOLO-based semantic detection testing.
 
@@ -51,7 +51,7 @@
     </scene>
 
     <!-- ================================================================
-         WALLS — identical to warehouse_semantic.world
+         WALLS
          Inner clearance: X in [-2, 2], Y in [-3, 3] (4 m x 6 m).
          Thickness 0.2 m, height 2.5 m.
          ================================================================ -->

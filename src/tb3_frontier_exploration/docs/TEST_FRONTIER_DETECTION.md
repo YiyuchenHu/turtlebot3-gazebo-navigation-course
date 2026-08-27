@@ -49,7 +49,7 @@ source install/setup.bash
    Or with config:
 
    ```bash
-   ros2 launch tb3_frontier_exploration frontier_detection.launch.py use_sim_time:=true
+   ros2 launch tb3_coordinator course_backend.launch.py
    ```
 
    Override parameters if needed:

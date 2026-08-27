@@ -31,8 +31,8 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# ── Install launch and config ─────────────────────────────────────────────
-install(DIRECTORY launch config
+# ── Install config ────────────────────────────────────────────────────────
+install(DIRECTORY config
   DESTINATION share/${PROJECT_NAME}
 )
 

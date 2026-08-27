@@ -9,9 +9,8 @@ TurtleBot3 custom frontier-based autonomous exploration package (Phase 2).
 
 ## Launch
 
-- `frontier_detection.launch.py` — Run frontier detection only.
-- `goal_assignment.launch.py` — Run goal assignment only.
-- `exploration.launch.py` — Run both (full exploration pipeline).
+Both nodes are started by `course_backend.launch.py` (Terminal 3); this package
+ships no launch file of its own.
 
 ## Dependencies
 

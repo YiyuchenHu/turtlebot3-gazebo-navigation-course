@@ -198,8 +198,6 @@ tb3_nav_adapter/
 ├── setup.cfg
 ├── config/
 │   └── nav_goal_adapter.yaml
-├── launch/
-│   └── nav_goal_adapter.launch.py
 └── tb3_nav_adapter/
     ├── goal_adapter_core.py
     └── nav_goal_adapter_node.py
@@ -218,9 +216,6 @@ tb3_nav_adapter/
 
 - `config/nav_goal_adapter.yaml`
   - runtime configuration for approach geometry, topics, and frame handling
-
-- `launch/nav_goal_adapter.launch.py`
-  - ROS 2 launch entry point
 
 ## Configuration
 
@@ -244,70 +239,6 @@ tb3_nav_adapter/
 
 - default: `0.5` s
 - how long to wait for TF lookup before falling back
-
-## How To Run
-
-### 1. Launch the Gazebo test world
-
-```bash
-cd ~/TurtleBot3-semantic-navigation
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-export TURTLEBOT3_MODEL=waffle_pi
-ros2 launch tb3_frontier_exploration detector_test_sim.launch.py
-```
-
-### 2. Launch `tb3_detector`
-
-```bash
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash && source install/setup.bash
-ros2 launch tb3_detector detector.launch.py use_sim_time:=true
-```
-
-### 3. Launch `tb3_localizer`
-
-```bash
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash && source install/setup.bash
-ros2 launch tb3_localizer localizer.launch.py use_sim_time:=true
-```
-
-### 4. Launch `semantic_memory_node`
-
-```bash
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash && source install/setup.bash
-ros2 launch tb3_memory semantic_memory.launch.py use_sim_time:=true
-```
-
-### 5. Launch `semantic_query_node`
-
-```bash
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash && source install/setup.bash
-ros2 launch tb3_query semantic_query.launch.py use_sim_time:=true
-```
-
-### 6. Launch `nav_goal_adapter_node`
-
-```bash
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash && source install/setup.bash
-ros2 launch tb3_nav_adapter nav_goal_adapter.launch.py use_sim_time:=true
-```
-
-### 7. Send a command and inspect the goal
-
-```bash
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash && source install/setup.bash
-
-ros2 topic pub --once /semantic_query_node/command std_msgs/String "data: 'go to the person'"
-
-ros2 topic echo /nav_goal_adapter_node/goal_pose
-```
 
 ## Limitations
 

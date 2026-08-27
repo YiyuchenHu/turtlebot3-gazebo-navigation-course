@@ -314,8 +314,6 @@ tb3_memory/
 ├── setup.cfg
 ├── config/
 │   └── semantic_memory.yaml
-├── launch/
-│   └── semantic_memory.launch.py
 └── tb3_memory/
     ├── memory_core.py
     └── semantic_memory_node.py
@@ -335,62 +333,6 @@ tb3_memory/
 - `config/semantic_memory.yaml`
   - main runtime configuration
   - matching distance, smoothing, stale/remove timeouts, publish rate
-
-- `launch/semantic_memory.launch.py`
-  - ROS 2 launch entry point
-
-## How To Run
-
-### 1. Launch the Gazebo test world
-
-```bash
-cd ~/TurtleBot3-semantic-navigation
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-export TURTLEBOT3_MODEL=waffle_pi
-ros2 launch tb3_frontier_exploration detector_test_sim.launch.py
-```
-
-### 2. Launch `tb3_detector`
-
-```bash
-cd ~/TurtleBot3-semantic-navigation
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-ros2 launch tb3_detector detector.launch.py use_sim_time:=true
-```
-
-### 3. Launch `tb3_localizer`
-
-```bash
-cd ~/TurtleBot3-semantic-navigation
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-ros2 launch tb3_localizer localizer.launch.py use_sim_time:=true
-```
-
-### 4. Launch `semantic_memory_node`
-
-```bash
-cd ~/TurtleBot3-semantic-navigation
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-ros2 launch tb3_memory semantic_memory.launch.py use_sim_time:=true
-```
-
-### 5. Inspect semantic memory output
-
-```bash
-source /opt/ros/humble/setup.bash
-source ~/TurtleBot3-semantic-navigation/install/setup.bash
-ros2 topic echo /semantic_memory_node/objects
-```
-
-Optional:
-
-```bash
-ros2 topic hz /semantic_memory_node/objects
-```
 
 ## Limitations
 

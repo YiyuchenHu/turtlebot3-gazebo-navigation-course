@@ -233,8 +233,6 @@ tb3_query/
 │   └── SemanticQueryResult.msg
 ├── config/
 │   └── semantic_query.yaml
-├── launch/
-│   └── semantic_query.launch.py
 └── tb3_query/
     ├── query_core.py
     └── semantic_query_node.py
@@ -257,64 +255,9 @@ tb3_query/
 - `config/semantic_query.yaml`
   - runtime configuration for topics, mapping file path, and output frame
 
-- `launch/semantic_query.launch.py`
-  - ROS 2 launch entry point
-
 ### Build note
 
 This package uses `ament_cmake` with `rosidl_default_generators` to support custom message generation alongside Python implementation.
-
-## How To Run
-
-### 1. Launch the full perception pipeline
-
-```bash
-cd ~/TurtleBot3-semantic-navigation
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-export TURTLEBOT3_MODEL=waffle_pi
-
-# Terminal 1: Gazebo
-ros2 launch tb3_frontier_exploration detector_test_sim.launch.py
-
-# Terminal 2: detector
-ros2 launch tb3_detector detector.launch.py use_sim_time:=true
-
-# Terminal 3: localizer
-ros2 launch tb3_localizer localizer.launch.py use_sim_time:=true
-
-# Terminal 4: memory
-ros2 launch tb3_memory semantic_memory.launch.py use_sim_time:=true
-
-# Terminal 5: query
-ros2 launch tb3_query semantic_query.launch.py use_sim_time:=true
-```
-
-### 2. Send commands
-
-```bash
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v miniconda | tr '\n' ':')
-source /opt/ros/humble/setup.bash && source install/setup.bash
-
-ros2 topic pub --once /semantic_query_node/command std_msgs/String "data: 'go to the person'"
-ros2 topic pub --once /semantic_query_node/command std_msgs/String "data: 'go to the table'"
-ros2 topic pub --once /semantic_query_node/command std_msgs/String "data: 'go to the stop sign'"
-```
-
-### 3. Inspect results
-
-```bash
-ros2 topic echo /semantic_query_node/selected_target
-ros2 topic echo /semantic_query_node/query_status
-```
-
-### 4. Run smoke test
-
-```bash
-cd ~/TurtleBot3-semantic-navigation
-python3 src/tb3_query/test/smoke_test_query.py
-```
 
 ## Limitations
 

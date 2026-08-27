@@ -45,9 +45,9 @@ from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 #                              one person. Kept for backward
 #                              compatibility and as a smaller test case.
 #
-# Other .world files (warehouse_semantic.world, detector_test.world)
-# remain on disk for their own dedicated launches but are not exposed
-# as aliases here. Pass an absolute path to use them via this launch.
+# detector_test.world remains on disk for its own dedicated launch
+# (detector_test_sim.launch.py) but is not exposed as an alias here.
+# Pass an absolute path to use it via this launch.
 WORLD_PRESETS = {
     "warehouse_models_person": {
         "file":      "warehouse_models_person.world",
