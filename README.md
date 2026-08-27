@@ -159,6 +159,35 @@ and the matching fix, in order:
 Then re-open T1–T5 in order as above. Verify the slate is clean with
 `ros2 node list` (should be empty or error out).
 
+### Troubleshooting: robot spins on the spot and never drives
+
+**Symptom.** The robot rotates in place indefinitely instead of exploring,
+and T2 repeats:
+
+```text
+[controller_server] [ERROR] Failed to make progress
+[controller_server] [WARN]  [follow_path] [ActionServer] Aborting handle.
+```
+
+Frontier goals keep being accepted, `/cmd_vel` carries a non-zero
+`angular.z` with `linear.x` stuck at 0, and nothing is actually in the way —
+`ros2 topic echo /scan` shows metres of clear space all round.
+
+**This is not caused by your code.** It is an occasional wedge in the Nav2
+controller/recovery loop; it happens with the reference detector too, and it
+can occur before your detector has published anything at all. Nothing in
+`detector_core.py` can cause it or fix it — the detector is not in the
+control loop.
+
+**Fix.** `Ctrl-C` every terminal and restart with the clean-restart procedure
+above, then re-open T1–T5 in order. It clears on restart. The map and any
+landmarks built so far are lost, so the robot re-explores from scratch.
+
+Do **not** try to fix this by lowering `conf_threshold` or widening
+`class_filter` — the two are unrelated, and loosening the detector to chase a
+navigation symptom is how you end up with the ghost landmarks described in
+INSTRUCTIONS.md.
+
 ## What works out of the box (before you write any code)
 
 - The robot performs a warm-up rotation, then **explores and maps the room

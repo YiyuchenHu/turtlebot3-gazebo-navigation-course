@@ -208,11 +208,47 @@ floor and ~0.3 m.
   task-level names (`person`, `trash_can`, `chair`) are resolved downstream
   via `semantic_targets.yaml`. Note that the trash can is detected as
   **`traffic light`** — COCO has no trash-can class.
-- The shipped `conf_threshold: 0.35` was set from a full-stack run. Below it,
-  yolo26n occasionally calls something near the robot a `traffic light` at
-  ~0.30 and plants a phantom trash-can landmark. True positives sit well
-  above: trash can 0.31-0.65, chair p50 0.87, person p50 ~0.9. You may tune it
-  in `config/detector.yaml`, but the acceptance test runs with the shipped config.
+
+#### Why `conf_threshold` is 0.35, and why you should not "just lower it"
+
+Every number below is measured on this scene with the shipped `yolo26n.pt`.
+
+The three real targets score far above the threshold — trash can 0.31–0.65,
+chair p50 0.87, person p50 ~0.9 — so 0.35 costs you nothing. What it buys you
+is protection from two different failure modes.
+
+**(a) Low thresholds let junk classes in, which is why `class_filter` is a
+whitelist.** yolo26n reports `airplane` on most untextured Gazebo props: p50
+0.51 on a cafe table, 0.34 on a *person*, 100% of frames on some objects. It is
+not background noise — an empty world detects nothing at all — the models
+genuinely look like that to the network. Because `airplane` fires on several
+different objects at once, it can never identify any one of them, so a landmark
+built from it is meaningless. The whitelist in `class_filter` is the only thing
+keeping it out. Never add it, and never replace the whitelist with `[""]`
+("accept everything") to "see more". Separately, dropping the threshold to 0.30
+was enough for yolo26n to call something 0.36 m from the robot a `traffic
+light` and plant a phantom trash can right next to the person.
+
+**(b) The perception parameters are one interlocked set — tuning one layer
+alone usually backfires.** A real example from this repository:
+`tb3_localizer`'s `scan_window_half` was once raised from 5 to 10 because the
+old `bench` target had a very wide bounding box (~32°) and a narrow LiDAR
+window kept missing it. Sensible in isolation. But that parameter is shared by
+*every* class: at ±10° the window spans 0.67 m at 1.9 m range — wider than a
+person. Most rays in it flew straight past her and hit the wall 0.9 m behind,
+so the windowed **median** came back as the wall, the projected position landed
+behind the person, and the `person` landmark stopped forming altogether. A
+detector-side change (add the bench) silently broke a *different* target two
+stages downstream, and the symptom ("person never appears in RViz") pointed
+nowhere near the cause. When the bench was retired the window went back to 5.
+
+So when a target misbehaves, walk the chain — detector → localizer → memory →
+map memory — and check *which* stage actually drops it (`ros2 topic echo`, in
+the order listed under Debugging advice) before touching any threshold. Tuning
+one layer to compensate for another hides the fault instead of fixing it.
+
+You may tune `conf_threshold` in `config/detector.yaml`, but the acceptance
+test runs with the shipped config.
 
 ## 5. Acceptance criteria
 
