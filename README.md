@@ -80,11 +80,16 @@ Two things to know:
 - **If you have conda installed, run `conda deactivate` first** (until
   `(base)` disappears from your prompt).
 - To rebuild a single package later:
-  `colcon build --packages-select <pkg>` (e.g. `tb3_detector`).
+  `colcon build --symlink-install --packages-select <pkg>` (e.g.
+  `tb3_detector`). Keep `--symlink-install` on every build: the first build
+  set it, and dropping it later copies files into `install/` that the
+  symlinked build expects to be links, so edits to configs and launch files
+  silently stop taking effect.
 
 The Gazebo models used by the course worlds (person, trash can, chair, …)
-are **vendored in this repository** (`src/tb3_frontier_exploration/models/`,
-see [NOTICE](NOTICE)) and wired up via `GAZEBO_MODEL_PATH` inside the launch
+are **vendored in this repository** (`src/tb3_bringup/models/`, next to the
+worlds that reference them in `src/tb3_bringup/worlds/`; see
+[NOTICE](NOTICE)) and wired up via `GAZEBO_MODEL_PATH` inside the launch
 files — no online model database access is needed.
 
 ### macOS (Docker) — coming soon
@@ -122,11 +127,11 @@ before starting the next:
 
 | # | Command | What it starts | Ready when … |
 |---|---|---|---|
-| T1 | `ros2 launch tb3_coordinator sim.launch.py` | Gazebo (server + GUI) + TurtleBot3 spawn, vendored `GAZEBO_MODEL_PATH` | Console prints `Successfully spawned entity [waffle_pi]` and the Gazebo window shows the room + robot (~5 s; first-ever Gazebo start can take longer) |
-| T2 | `ros2 launch tb3_coordinator nav.launch.py` | SLAM Toolbox + Nav2 + RViz | Console prints `[lifecycle_manager_navigation]: Managed nodes are active` (~5–10 s); RViz shows a first gray map patch around the robot |
-| T3 | `ros2 launch tb3_coordinator course_backend.launch.py` | Course backend: memory, semantic map memory, query, nav adapter, coordinator, warmup + frontier exploration | `CoordinatorNode ready — mode=EXPLORING` appears immediately; the robot does a short ±45° warm-up scan, then `frontier exploration enabled` (~10 s) and the robot starts exploring |
-| T4 | `ros2 launch tb3_localizer localizer.launch.py` | Localizer (bbox + LiDAR → object position) | `LocalizerNode ready` + `Image width learned: 640 px` (~1 s), then quiet until detections arrive |
-| T5 | `ros2 launch tb3_detector detector.launch.py` | Detector: YOLO inference on the camera image (shipped weights: `yolo26n`) | `Model loaded. Classes: [...]` then `detector_node ready` (~3 s, first inference warms up torch); `ros2 topic echo /detector_node/detections` streams non-empty `detections` once an object is in view; RViz **Detector Debug Image** shows green bounding boxes |
+| T1 | `ros2 launch tb3_bringup sim.launch.py` | Gazebo (server + GUI) + TurtleBot3 spawn, vendored `GAZEBO_MODEL_PATH` | Console prints `Successfully spawned entity [waffle_pi]` and the Gazebo window shows the room + robot (~5 s; first-ever Gazebo start can take longer) |
+| T2 | `ros2 launch tb3_bringup nav.launch.py` | SLAM Toolbox + Nav2 + RViz | Console prints `[lifecycle_manager_navigation]: Managed nodes are active` (~5–10 s); RViz shows a first gray map patch around the robot |
+| T3 | `ros2 launch tb3_bringup backend.launch.py` | Course backend: memory, semantic map memory, query, nav adapter, coordinator, warmup + frontier exploration | `CoordinatorNode ready — mode=EXPLORING` appears immediately; the robot does a short ±45° warm-up scan, then `frontier exploration enabled` (~10 s) and the robot starts exploring |
+| T4 | `ros2 launch tb3_bringup localizer.launch.py` | Localizer (bbox + LiDAR → object position) | `LocalizerNode ready` + `Image width learned: 640 px` (~1 s), then quiet until detections arrive |
+| T5 | `ros2 launch tb3_bringup detector.launch.py` | Detector: YOLO inference on the camera image (shipped weights: `yolo26n`) | `Model loaded. Classes: [...]` then `detector_node ready` (~3 s, first inference warms up torch); `ros2 topic echo /detector_node/detections` streams non-empty `detections` once an object is in view; RViz **Detector Debug Image** shows green bounding boxes |
 | T6 | *(no launch — the command console)* | Send user commands, watch status | — |
 
 T6 commands:
@@ -138,6 +143,14 @@ ros2 topic echo /coordinator_node/status
 
 You can restart any single terminal without touching the others.
 
+**Exploration takes 2–8 minutes.** Once T3 is up the robot drives itself
+around the room until the frontier is exhausted, and only objects it has
+actually seen can be navigated to — so a `go to …` command issued too early
+fails with `no active <target> in memory`. The spread is normal: it depends
+on the world, the spawn pose and how long Nav2 spends on recovery
+behaviours. Watch `/semantic_memory_markers` in RViz and send commands once
+the landmarks you want have appeared.
+
 ### Choosing a world
 
 | `world:=` alias | File | Contents | Auto spawn |
@@ -148,7 +161,7 @@ You can restart any single terminal without touching the others.
 The world is picked in T1 (everything else is world-agnostic):
 
 ```bash
-ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
+ros2 launch tb3_bringup sim.launch.py world:=warehouse_models
 ```
 
 An absolute path to a custom `.world` file is also accepted. The same
@@ -160,7 +173,7 @@ For demos and smoke tests:
 
 ```bash
 export TURTLEBOT3_MODEL=waffle_pi
-ros2 launch tb3_coordinator full_semantic_nav.launch.py
+ros2 launch tb3_bringup full_stack.launch.py
 ```
 
 Give it ~30 s to settle. It forwards `world:=`, `use_rviz:=` and
@@ -171,6 +184,28 @@ tmux, the navigation commands, and a pass/fail report), run
 [`scripts/acceptance_run.sh`](scripts/acceptance_run.sh). It needs `tmux`, and
 defaults to `--world warehouse_models`, the world holding all three targets;
 `--dry-run` prints the plan without starting anything.
+
+## Where to change things
+
+Four files cover almost every edit. Everything is under `src/`.
+
+| I want to … | Edit | Notes |
+|---|---|---|
+| **Use a different world** | `src/tb3_bringup/worlds/*.world`, and `WORLD_PRESETS` in `src/tb3_bringup/launch/sim.launch.py` to give it a `world:=` alias and a spawn pose | Objects the world places must exist in `src/tb3_bringup/models/`; add a new prop there first |
+| **Add or rename a semantic target** | `src/tb3_bringup/config/semantic_targets.yaml` | The one registry mapping `semantic_name` ↔ `detector_label` ↔ Gazebo model. Add the detector label to `class_filter` in `detector.yaml` too |
+| **Tune detector thresholds** | `src/tb3_detector/config/detector.yaml` | `conf_threshold`, `class_filter`, `device`. `class_filter` takes detector labels (`"traffic light"`), never semantic names |
+| **Tune exploration / goal assignment** | `src/tb3_frontier_exploration/config/params.yaml` | Frontier size, goal spacing, blacklist TTL. The thresholds interlock — see NOTES.md |
+| **Tune memory, query, approach pose** | `src/tb3_memory/config/`, `src/tb3_query/config/`, `src/tb3_nav_adapter/config/`, `src/tb3_coordinator/config/` | One YAML per package, named after the node it configures |
+| **Change RViz layout** | `src/tb3_bringup/rviz/semantic_nav.rviz` | Opened by `nav.launch.py`; `use_rviz:=false` turns it off |
+| **Change which nodes start** | `src/tb3_bringup/launch/` | One launch file per terminal; `src/tb3_bringup/launch/README.md` maps each to its terminal |
+| **Change detection code** | `src/tb3_detector/tb3_detector/detector_core.py` | The graded file. See [INSTRUCTIONS.md](INSTRUCTIONS.md) |
+
+**`build/`, `install/` and `log/` are generated — do not read them and do not
+edit them.** `colcon build` writes all three from `src/`; `install/` holds
+symlinks back into `src/` (that is what `--symlink-install` does), so an edit
+made there is either overwritten on the next build or silently editing the
+source through a link. Anything you actually want to keep goes in `src/`.
+All three are git-ignored; deleting them and rebuilding is a safe reset.
 
 ## Troubleshooting
 
@@ -234,13 +269,14 @@ Do **not** try to fix this by lowering `conf_threshold` or widening
 
 | Package | Role |
 |---|---|
+| `tb3_bringup` | every launch file, the RViz config, the Gazebo worlds, the vendored models and `semantic_targets.yaml`. No code of its own |
 | `tb3_detector` | YOLO detection on the camera image (`yolo26n`) |
 | `tb3_localizer` | bbox centre → bearing + LiDAR range → `(x, y)` in `base_link` |
 | `tb3_memory` | short-term memory, stable IDs `person_0…` |
-| `tb3_coordinator` | persistent map landmarks, state machine, RViz config, main launch |
+| `tb3_coordinator` | persistent map landmarks + the coordinator state machine |
 | `tb3_query` | rule-based command parsing (`SemanticQueryResult` msg) |
 | `tb3_nav_adapter` | approach-pose computation for Nav2 |
-| `tb3_frontier_exploration` | frontier detection + goal assignment (C++), worlds, vendored models |
+| `tb3_frontier_exploration` | frontier detection + goal assignment (C++) |
 
 How they fit together:
 

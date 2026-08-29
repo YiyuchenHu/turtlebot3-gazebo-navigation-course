@@ -47,7 +47,7 @@ from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 #                              compatibility and as a smaller test case.
 #
 # detector_test.world remains on disk for its own dedicated launch
-# (detector_test_sim.launch.py) but is not exposed as an alias here.
+# (detector_test.launch.py) but is not exposed as an alias here.
 # Pass an absolute path to use it via this launch.
 WORLD_PRESETS = {
     "warehouse_models_person": {

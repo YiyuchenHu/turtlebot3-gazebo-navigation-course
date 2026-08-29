@@ -2,7 +2,7 @@
 full_stack.launch.py — Terminals 1-5 in one process (convenience shell).
 
 The RECOMMENDED way to run the course is the six-terminal flow in the
-README Quick start (sim / nav / course_backend / localizer / detector as
+README Quick start (sim / nav / backend / localizer / detector as
 separate `ros2 launch` commands, so each subsystem has its own logs and
 can be restarted alone). This file exists for the cases where one command
 is preferable (demos, quick smoke tests, the grader's batch run).
@@ -20,7 +20,7 @@ Usage:
 
 All arguments are forwarded to the relevant sub-launch: `world`,
 `x_pose`, `y_pose` (sim), `use_rviz` (nav), `use_runtime_debug`
-(course_backend), `use_sim_time` (all).
+(backend), `use_sim_time` (all).
 """
 import os
 

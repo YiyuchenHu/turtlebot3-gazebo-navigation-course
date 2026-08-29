@@ -19,8 +19,12 @@ detector package so the weights reach `install/`:
 
 ```bash
 cd ~/turtlebot3-gazebo-navigation-course
-colcon build --packages-select tb3_detector
+colcon build --symlink-install --packages-select tb3_detector
 ```
+
+Keep `--symlink-install` on every build, including single-package ones — the
+first full build set it, and dropping it later replaces symlinks in
+`install/` with copies, so later config and launch edits stop taking effect.
 
 Set `device: "cuda:0"` in `config/detector.yaml` only if you have a GPU.
 
@@ -49,7 +53,7 @@ Follow the `TODO(student)` blocks in `detector_core.py`.
 Development loop — Terminal 5 only (see the README six-terminal table):
 
 1. Edit `detector_core.py`.
-2. In T5: `Ctrl-C`, then re-run `ros2 launch tb3_detector detector.launch.py`.
+2. In T5: `Ctrl-C`, then re-run `ros2 launch tb3_bringup detector.launch.py`.
 3. Watch T5's log and the RViz **Detector Debug Image**.
 
 Rebuild only when files are added or removed (e.g. the weights in Step 1).
@@ -58,13 +62,19 @@ Rebuild only when files are added or removed (e.g. the weights in Step 1).
 
 ```bash
 # Terminal 1 — static self-test world
+source /opt/ros/humble/setup.bash
+source install/setup.bash
 export TURTLEBOT3_MODEL=waffle_pi
-ros2 launch tb3_frontier_exploration detector_test_sim.launch.py
+ros2 launch tb3_bringup detector_test.launch.py
 
 # Terminal 2
-ros2 launch tb3_detector detector.launch.py
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch tb3_bringup detector.launch.py
 
 # Terminal 3
+source /opt/ros/humble/setup.bash
+source install/setup.bash
 ros2 topic echo /detector_node/detections
 ros2 run rqt_image_view rqt_image_view /detector_node/debug_image
 ```
@@ -126,10 +136,16 @@ labels (`"traffic light"`, not `"trash_can"`); multi-word labels contain a space
 
 ## Acceptance criteria
 
-"Reaches" means the robot ends within **1.0 m of the real object**, measured
-against Gazebo ground truth. A `TARGET_REACHED` on its own is not enough. (The
-nav adapter aims for a 0.5 m standoff; the reference run finished at 0.78 m,
-0.62 m and 0.92 m — NOTES.md §6.1.)
+"Reaches" means the robot ends within **1.2 m of the real object**, measured
+against Gazebo ground truth. A `TARGET_REACHED` on its own is not enough.
+
+The 1.2 m is an error budget, not a slack allowance: the nav adapter aims for
+a 0.5 m standoff, the landmark itself sits systematically short of the object
+centre (the LiDAR returns the near surface, and for the chair that bias
+measured 0.15–0.36 m), and Nav2 stops anywhere inside its own xy goal
+tolerance. Worst case those stack to roughly 1.1 m with everything working
+correctly, which left no headroom under the old 1.0 m bar. The reference run
+finished at 0.78 m, 0.62 m and 0.92 m — NOTES.md §6.1 derives the budget.
 
 Your implementation passes when, with `detector_core.py` as the only code change:
 
@@ -146,7 +162,7 @@ Your implementation passes when, with `detector_core.py` as the only code change
    the same way:
    ```bash
    # Terminal 1 (after a clean restart)
-   ros2 launch tb3_coordinator sim.launch.py world:=warehouse_models
+   ros2 launch tb3_bringup sim.launch.py world:=warehouse_models
    ```
    ```bash
    # Terminal 6

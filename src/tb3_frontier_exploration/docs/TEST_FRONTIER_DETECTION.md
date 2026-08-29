@@ -29,7 +29,7 @@ So: one centroid per connected frontier blob, after dropping small blobs.
 ## Build
 
 ```bash
-cd /path/to/ros2_ws
+cd ~/turtlebot3-gazebo-navigation-course
 source /opt/ros/humble/setup.bash
 colcon build --packages-select tb3_frontier_exploration
 source install/setup.bash
@@ -49,7 +49,7 @@ source install/setup.bash
    Or with config:
 
    ```bash
-   ros2 launch tb3_coordinator course_backend.launch.py
+   ros2 launch tb3_bringup backend.launch.py
    ```
 
    Override parameters if needed:

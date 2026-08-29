@@ -10,7 +10,7 @@
 ## Build
 
 ```bash
-cd ~/TurtleBot3-semantic-navigation
+cd ~/turtlebot3-gazebo-navigation-course
 source /opt/ros/humble/setup.bash
 colcon build --packages-select tb3_frontier_exploration
 source install/setup.bash
