@@ -22,6 +22,16 @@
 
   <exec_depend>rosidl_default_runtime</exec_depend>
 
+  <!-- No <exec_depend>tb3_bringup</exec_depend>, deliberately. This package
+       reads semantic_targets.yaml, which ships in tb3_bringup/config, but
+       tb3_bringup already exec_depends on tb3_query (its launch files start
+       semantic_query_node, and tb3_coordinator / tb3_nav_adapter build
+       against the messages defined here). Declaring the reverse edge makes
+       colcon refuse to order the workspace at all. The path is supplied by
+       backend.launch.py instead; when the node is started bare its fallback
+       resolves tb3_bringup at run time and reports a clear error if the
+       file is missing. -->
+
   <member_of_group>rosidl_interface_packages</member_of_group>
 
   <test_depend>ament_lint_auto</test_depend>

@@ -80,8 +80,11 @@ class SemanticQueryNode(Node):
         self._out_frame = self.get_parameter("output_frame").value
 
         # ── Load semantic mapping ─────────────────────────────────────────
+        # backend.launch.py sets this explicitly. The fallback only matters
+        # when the node is started bare (`ros2 run tb3_query ...`), and it
+        # points at tb3_bringup, which is where semantic_targets.yaml ships.
         if not targets_file:
-            pkg_share = get_package_share_directory("tb3_frontier_exploration")
+            pkg_share = get_package_share_directory("tb3_bringup")
             targets_file = os.path.join(pkg_share, "config", "semantic_targets.yaml")
 
         self._sem2det, self._det2sem = load_target_mapping(targets_file)

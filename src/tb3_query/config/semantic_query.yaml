@@ -16,8 +16,10 @@ semantic_query_node:
     status_topic:  "~/query_status"     # -> /semantic_query_node/query_status
 
     # ── Mapping ───────────────────────────────────────────
-    # Path to semantic_targets.yaml. Empty = auto-resolve from
-    # tb3_frontier_exploration package share.
+    # Path to semantic_targets.yaml. Empty = auto-resolve from the
+    # tb3_bringup package share (share/tb3_bringup/config/).
+    # backend.launch.py overrides this with that resolved path, so the
+    # fallback only fires when the node is started bare with `ros2 run`.
     semantic_targets_file: ""
 
     # ── Output ────────────────────────────────────────────

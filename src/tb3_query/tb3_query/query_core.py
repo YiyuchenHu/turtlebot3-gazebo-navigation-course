@@ -73,10 +73,30 @@ def load_target_mapping(yaml_path: str | Path) -> tuple[dict[str, str], dict[str
         (sem2det, det2sem)
         sem2det:  semantic_name  → detector_label
         det2sem:  detector_label → semantic_name
+
+    Raises:
+        FileNotFoundError: the file is missing or unreadable. The message
+            names the path and the package that ships it, because the usual
+            cause is a stale/absent install tree rather than a bad parameter.
     """
     path = Path(yaml_path)
-    with open(path, "r") as f:
-        data = yaml.safe_load(f)
+    try:
+        with open(path, "r") as f:
+            data = yaml.safe_load(f)
+    except OSError as exc:
+        raise FileNotFoundError(
+            "could not read semantic_targets.yaml at %s (%s). It ships in "
+            "tb3_bringup (src/tb3_bringup/config/semantic_targets.yaml). "
+            "Rebuild with `colcon build --symlink-install` and re-source "
+            "install/setup.bash, or point the semantic_targets_file "
+            "parameter at an existing file." % (path, exc)
+        ) from exc
+
+    if not isinstance(data, dict):
+        raise ValueError(
+            "%s does not parse to a YAML mapping; expected a top-level "
+            "`semantic_targets:` list." % path
+        )
 
     targets = data.get("semantic_targets", [])
     sem2det: dict[str, str] = {}

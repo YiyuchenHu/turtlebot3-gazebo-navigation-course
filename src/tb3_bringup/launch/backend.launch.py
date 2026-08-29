@@ -88,6 +88,14 @@ def generate_launch_description():
             parameters=[
                 PathJoinSubstitution([FindPackageShare("tb3_query"),
                                       "config", "semantic_query.yaml"]),
+                # semantic_targets.yaml is an asset, not tb3_query's own
+                # config: it lives in tb3_bringup/config next to the worlds
+                # whose objects it names. Set explicitly here so the path is
+                # visible in the launch file rather than resolved by a
+                # cross-package fallback inside the node.
+                {"semantic_targets_file": PathJoinSubstitution(
+                    [FindPackageShare("tb3_bringup"),
+                     "config", "semantic_targets.yaml"])},
                 {"use_sim_time": use_sim_time},
             ],
         ),

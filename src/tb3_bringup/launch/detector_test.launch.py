@@ -26,13 +26,13 @@ from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 
 
 def generate_launch_description():
-    pkg_tb3_fe = get_package_share_directory("tb3_frontier_exploration")
+    pkg_bringup = get_package_share_directory("tb3_bringup")
     pkg_gazebo_ros = get_package_share_directory("gazebo_ros")
     launch_tb3 = os.path.join(
         get_package_share_directory("turtlebot3_gazebo"), "launch"
     )
 
-    world = os.path.join(pkg_tb3_fe, "worlds", "detector_test.world")
+    world = os.path.join(pkg_bringup, "worlds", "detector_test.world")
 
     use_sim_time = LaunchConfiguration("use_sim_time", default="true")
     # Robot spawns at origin facing +X so all test objects are directly ahead.
@@ -76,7 +76,7 @@ def generate_launch_description():
         SetEnvironmentVariable(
             name="GAZEBO_MODEL_PATH",
             value=[
-                os.path.join(pkg_tb3_fe, "models"),
+                os.path.join(pkg_bringup, "models"),
                 ":",
                 EnvironmentVariable("GAZEBO_MODEL_PATH", default_value=""),
             ],

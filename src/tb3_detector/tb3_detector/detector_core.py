@@ -113,7 +113,7 @@ class DetectorCore:
     ------------------------------------------------------------------------
     YOLOv8's COCO-80 class names do not always match what this project calls
     an object. The mapping used by the rest of the stack lives in
-    src/tb3_frontier_exploration/config/semantic_targets.yaml:
+    src/tb3_bringup/config/semantic_targets.yaml:
 
         task name    COCO detector_label      Gazebo model
         ---------    -------------------      ------------

@@ -36,12 +36,10 @@ install(PROGRAMS
   scripts/startup_map_warmup_node.py
   DESTINATION lib/${PROJECT_NAME})
 
-# `models` holds the vendored Gazebo models referenced by the .world files
-# via model:// URIs; launch files point GAZEBO_MODEL_PATH at its share copy.
+# Only params.yaml lives here now. The Gazebo worlds and the vendored models
+# they reference moved to tb3_bringup, next to the launch files that load them.
 install(DIRECTORY
   config
-  worlds
-  models
   DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

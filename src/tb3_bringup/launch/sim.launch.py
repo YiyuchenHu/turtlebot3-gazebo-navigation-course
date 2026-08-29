@@ -2,8 +2,9 @@
 sim.launch.py — Terminal 1: Gazebo + TurtleBot3 only.
 
 Brings up gzserver + gzclient with a course world, robot_state_publisher,
-and the TurtleBot3 spawn. Sets GAZEBO_MODEL_PATH so the vendored models
-(person_standing, table_marble, stop_sign, …) resolve offline.
+and the TurtleBot3 spawn. Worlds and the vendored Gazebo models they
+reference both ship in this package (tb3_bringup/worlds, tb3_bringup/models);
+GAZEBO_MODEL_PATH is pointed at the installed models so they resolve offline.
 
 Usage:
     export TURTLEBOT3_MODEL=waffle_pi
@@ -28,7 +29,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 
 
-# Built-in Gazebo world presets shipped with tb3_frontier_exploration.
+# Built-in Gazebo world presets shipped in tb3_bringup/worlds.
 # Each entry maps a short alias (the value the user passes via
 # `world:=...`) to (world_file, default_x, default_y).
 #
@@ -75,7 +76,7 @@ _FALLBACK_SPAWN_Y = "-1.2"
 def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time", default="true")
 
-    pkg_fe = get_package_share_directory("tb3_frontier_exploration")
+    pkg_bringup = get_package_share_directory("tb3_bringup")
     pkg_gazebo_ros = get_package_share_directory("gazebo_ros")
     launch_tb3 = os.path.join(
         get_package_share_directory("turtlebot3_gazebo"), "launch"
@@ -98,7 +99,7 @@ def generate_launch_description():
 
         if raw in WORLD_PRESETS:
             preset = WORLD_PRESETS[raw]
-            world_file = os.path.join(pkg_fe, "worlds", preset["file"])
+            world_file = os.path.join(pkg_bringup, "worlds", preset["file"])
             preset_x   = preset["default_x"]
             preset_y   = preset["default_y"]
             source = "alias"
@@ -163,7 +164,7 @@ def generate_launch_description():
     set_gazebo_model_path = SetEnvironmentVariable(
         name="GAZEBO_MODEL_PATH",
         value=[
-            os.path.join(pkg_fe, "models"),
+            os.path.join(pkg_bringup, "models"),
             ":",
             EnvironmentVariable("GAZEBO_MODEL_PATH", default_value=""),
         ],
