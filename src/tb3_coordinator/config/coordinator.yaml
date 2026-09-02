@@ -63,10 +63,10 @@ semantic_map_memory_node:
     candidate_merge_distance: 1.5
 
     # ── Promotion ──────────────────────────────────────────
-    # Generic fallback (any class without a class-specific override
-    # below uses this). Kept at 3 because most non-person classes
-    # (table, stop_sign) appear once per world and small numbers are
-    # fine.
+    # Generic fallback for any class without a class-specific override
+    # below. All three enabled targets DO have overrides (person 8,
+    # chair 12, traffic_light 12), so nothing currently reaches this value;
+    # it only matters if you add a fourth target to semantic_targets.yaml.
     min_observations:         3
 
     # ── Obstacle island search ─────────────────────────────

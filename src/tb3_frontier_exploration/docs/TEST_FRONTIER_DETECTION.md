@@ -31,7 +31,7 @@ So: one centroid per connected frontier blob, after dropping small blobs.
 ```bash
 cd ~/turtlebot3-gazebo-navigation-course
 source /opt/ros/humble/setup.bash
-colcon build --packages-select tb3_frontier_exploration
+colcon build --symlink-install --packages-select tb3_frontier_exploration
 source install/setup.bash
 ```
 

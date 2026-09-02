@@ -619,13 +619,15 @@ not answer it.
 [SEMANTIC_NAV] target selected: <id> (<semantic_name>) at (<x>, <y>) — waiting for goal pose
 [SEMANTIC_NAV] goal pose received: (<x>, <y>) in map — sending to Nav2
 [TARGET_REACHED] Nav2 goal succeeded — target reached
-[TARGET_FAILED] ...
-[SEMANTIC_QUERYING] ... query failed: ...
+[TARGET_FAILED] query failed: <reason>
 ```
 
 The terminal states are a status beginning `[TARGET_REACHED]` (success) or
-`[TARGET_FAILED]` (failure); a parse or lookup failure surfaces earlier as
-`[SEMANTIC_QUERYING] ... query failed: ...`.
+`[TARGET_FAILED]` (failure). A parse or lookup failure also surfaces as
+`[TARGET_FAILED]`, **not** as `[SEMANTIC_QUERYING]`: `coordinator_node.py`
+calls `_set_mode(Mode.TARGET_FAILED)` on the line *before* it publishes
+`query failed: ...`, and the prefix is stamped from the mode at publish time.
+Match on the substring `query failed:` if you want that case specifically.
 
 **If you match these strings programmatically**, note the em dashes (U+2014)
 inside them. Match on ASCII-safe substrings — `target selected:`, the
@@ -669,6 +671,46 @@ by hand. It is right for a demo or a smoke test and wrong for development:
 everything shares one log stream, and restarting the detector alone is no
 longer possible. The delays are also fixed, so on a slow machine the ordering
 guarantee the six-terminal flow gives you is not guaranteed at all.
+
+### 7.8 The failed-goal set, and the 40 s limit cycle it replaced
+
+`goal_assignment_node` remembers goals that failed, so it does not immediately
+re-send one Nav2 has just given up on. That memory used to be a **single slot**
+(`last_failed_goal_`), and that single slot was a deadlock:
+
+```text
+frontier goal (0.00, -1.36)  stalls 20 s -> CANCELED -> last_failed = (0.00, -1.36)
+fallback goal (-1.20, 0.30)  stalls 20 s -> CANCELED -> last_failed = (-1.20, 0.30)   <-- overwrites
+frontier goal (0.00, -1.36)  is no longer "the last failed goal" -> re-armed
+... repeat forever, period = 2 x goal_timeout = 40 s
+```
+
+The robot never physically jams — the nearest obstacle stays outside the
+inflation radius throughout. It just alternates between two goals it cannot
+reach while the map stops growing. The signature is unmistakable in the logs:
+in a wedged run the most-frequently-selected goal accounts for **100 %** of all
+selections; in a healthy run it is 6–20 %.
+
+The fix has two halves, and neither works alone:
+
+* **A time-limited failure set.** Frontier and fallback goals now share one set
+  and cannot overwrite each other. Repeated failures at the same spot refresh
+  the timestamp rather than appending, so one bad location cannot flood the
+  set, and `failed_goal_max_entries` (64) bounds it. Entries expire after
+  `failed_goal_ttl_sec` (90 s) — TTL, not success, is what re-admits a goal.
+  Success deliberately does **not** clear the memory: if it did, any fallback
+  goal that happened to succeed would re-arm a frontier that had been failing
+  for minutes, which is the original bug wearing a different hat.
+* **A minimum-uptime guard.** The stuck-detector used to require "the robot has
+  moved at least once", which is exactly false during this deadlock, so the
+  escape hatch was shut when it was needed. It is now gated on
+  `min_exploration_time_sec` (60 s) measured from the moment exploration is
+  genuinely running (enabled + warmup done + Nav2 answering), not from node
+  construction — `startup_warmup_timeout_sec` can be 90 s, which would
+  otherwise eat the whole guard window.
+
+Measured over 12 probe runs after the fix: 0 wedged, and the most-frequent-goal
+share dropped to a maximum of 12 %, squarely inside the healthy band.
 
 ---
 

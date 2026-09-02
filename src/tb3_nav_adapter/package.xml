@@ -8,8 +8,8 @@
     Stage-5 semantic navigation: convert a selected semantic target into a
     safe approach PoseStamped goal for Nav2.
   </description>
-  <maintainer email="user@todo.todo">Your Name</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="yih226@lehigh.edu">Yiyuchen Hu</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
 

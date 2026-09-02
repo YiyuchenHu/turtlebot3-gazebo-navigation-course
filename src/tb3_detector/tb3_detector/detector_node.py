@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-detector_node.py  —  ROS 2 node wrapper for Stage-1 YOLOv8 detection.
+detector_node.py  —  ROS 2 node wrapper for Stage-1 YOLO26 detection.
 
 REFERENCE BRANCH ──────────────────────────────────────────────────────────
 This wrapper is identical to the one students receive on `main`; only the
@@ -31,10 +31,11 @@ Published topics
 
 Parameters
 ----------
-  model_path              str   Path to yolov8*.pt (see INSTRUCTIONS.md)
-  conf_threshold          float 0.12 in the shipped config (see detector.yaml)
+  model_path              str   Path to yolo26*.pt (see INSTRUCTIONS.md)
+  conf_threshold          float 0.35 in the shipped config (see detector.yaml)
   device                  str   "cpu" | "cuda:0"
-  class_filter            list  [""] means all classes; COCO labels to filter
+  class_filter            list  [""] means all classes; COCO detector labels
+                                (shipped: "person", "traffic light", "chair")
   enable_tracking         bool  false
   publish_debug_image     bool  true
   image_topic             str   "/camera/image_raw"
@@ -65,7 +66,7 @@ except ImportError as e:
         f"Original error: {e}"
     )
 
-# Local detector logic (same package) — the YOLOv8 wrapper.
+# Local detector logic (same package) — the YOLO26 wrapper.
 from tb3_detector.detector_core import DetectorCore
 
 

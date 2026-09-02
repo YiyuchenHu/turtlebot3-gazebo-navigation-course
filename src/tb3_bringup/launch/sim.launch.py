@@ -42,9 +42,9 @@ from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 #                              figures (four corners + centre), sized so
 #                              the LDS-01 LiDAR (3.5 m range) always sees
 #                              every wall. Tuned for "go to person N".
-#   - warehouse_models:        the original 4×6 m room with one table +
-#                              one person. Kept for backward
-#                              compatibility and as a smaller test case.
+#   - warehouse_models:        the 4×6 m room with one of each semantic
+#                              target — person, trash can and chair. This
+#                              is the world the acceptance run defaults to.
 #
 # detector_test.world remains on disk for its own dedicated launch
 # (detector_test.launch.py) but is not exposed as an alias here.

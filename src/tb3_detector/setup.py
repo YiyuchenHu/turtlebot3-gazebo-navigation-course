@@ -20,10 +20,10 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="Your Name",
-    maintainer_email="user@todo.todo",
-    description="Stage-1 perception: YOLOv8 detector node for TB3 semantic navigation.",
-    license="Apache-2.0",
+    maintainer="Yiyuchen Hu",
+    maintainer_email="yih226@lehigh.edu",
+    description="Stage-1 perception: YOLO26 detector node for TB3 semantic navigation.",
+    license="MIT",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [

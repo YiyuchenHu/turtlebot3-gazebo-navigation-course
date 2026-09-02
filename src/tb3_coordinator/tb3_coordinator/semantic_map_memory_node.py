@@ -59,10 +59,14 @@ class Landmark:
     last_seen: float = 0.0
 
 
+# Keyed by DETECTOR LABEL, because that is what `Landmark.semantic_class`
+# carries (landmark ids read `traffic light_0`, not `trash_can_0`). The three
+# keys are the enabled detector_label values in
+# tb3_bringup/config/semantic_targets.yaml; anything else falls back to grey.
 CLASS_COLORS = {
-    "person":    ColorRGBA(r=0.2, g=0.8, b=0.2, a=0.9),
-    "bench":     ColorRGBA(r=0.8, g=0.6, b=0.2, a=0.9),
-    "stop sign": ColorRGBA(r=0.9, g=0.1, b=0.1, a=0.9),
+    "person":        ColorRGBA(r=0.2, g=0.8, b=0.2, a=0.9),   # green
+    "traffic light": ColorRGBA(r=0.2, g=0.45, b=0.95, a=0.9),  # blue  = trash_can
+    "chair":         ColorRGBA(r=0.95, g=0.55, b=0.1, a=0.9),  # orange
 }
 DEFAULT_COLOR = ColorRGBA(r=0.6, g=0.6, b=0.6, a=0.9)
 

@@ -30,7 +30,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "model_path",
             default_value=PathJoinSubstitution([pkg_share, "models", "yolo26n.pt"]),
-            description="Absolute path to YOLOv8 .pt weights.",
+            description="Absolute path to YOLO26 .pt weights.",
         ),
         DeclareLaunchArgument(
             "device",

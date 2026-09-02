@@ -13,8 +13,8 @@
     Start here when you are looking for "which file do I edit": launch/README.md
     maps each launch file to its terminal and to the config it reads.
   </description>
-  <maintainer email="user@todo.todo">Your Name</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="yih226@lehigh.edu">Yiyuchen Hu</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

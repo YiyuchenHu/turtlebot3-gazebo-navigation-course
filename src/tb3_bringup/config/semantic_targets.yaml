@@ -6,12 +6,12 @@
 #
 #   semantic_name    Human-facing label. Used by the rule-based command
 #                    parser in tb3_query.
-#                    This is what a user says: "go to the table".
+#                    This is what a user says: "go to the trash can".
 #
 #   detector_label   YOLO / COCO class string. Used in detector.yaml
-#                    class_filter. This is what YOLOv8 outputs.
+#                    class_filter. This is what YOLO26 outputs.
 #                    NEVER confuse with semantic_name — they may differ
-#                    (e.g. semantic "table" ↔ YOLO "bench").
+#                    (e.g. semantic "trash_can" ↔ YOLO "traffic light").
 #
 #   gazebo_model     Directory name under ~/.gazebo/models used in
 #                    Gazebo world files via model:// URI.

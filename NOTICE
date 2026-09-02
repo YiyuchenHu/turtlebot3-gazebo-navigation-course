@@ -1,27 +1,33 @@
 NOTICE — Third-party Gazebo models vendored in this repository
 ==============================================================
 
-The directory src/tb3_frontier_exploration/models/ contains five Gazebo
-Classic models copied verbatim from a local Gazebo model cache
-(~/.gazebo/models). These models were originally distributed through the
-Gazebo model database (the online library historically fetched by Gazebo
-Classic from models.gazebosim.org, maintained in the OSRF "gazebo_models"
-repository, https://github.com/osrf/gazebo_models). They are vendored here so
-that the simulation works offline on a fresh machine, because the online
-model database is deprecated and slow/unreliable to fetch from.
+The directory src/tb3_bringup/models/ contains five vendored Gazebo models,
+from two different sources:
 
-IMPORTANT — license status: NONE of the five model directories contains a
-bundled LICENSE/COPYING file. The information below is a verbatim
-transcription of each model's model.config metadata (the only
-authorship/licensing-related information shipped inside the model
-directories). No compliance judgement has been made; licensing must be
-reviewed manually before public redistribution. (For reference only: the
+  * Entries 1-3 were copied verbatim from a local Gazebo Classic model cache
+    (~/.gazebo/models). They were originally distributed through the Gazebo
+    model database (the online library historically fetched by Gazebo Classic
+    from models.gazebosim.org, maintained in the OSRF "gazebo_models"
+    repository, https://github.com/osrf/gazebo_models).
+  * Entries 4-5 were downloaded from Gazebo Fuel and DO carry published
+    license terms, transcribed in full below.
+
+They are vendored here so that the simulation works offline on a fresh
+machine, because the online model database is deprecated and slow/unreliable
+to fetch from.
+
+IMPORTANT — license status: NONE of the three cache-copied model directories
+(entries 1-3) contains a bundled LICENSE/COPYING file. For those three, the
+information below is a verbatim transcription of each model's model.config
+metadata (the only authorship/licensing-related information shipped inside
+the model directories). No compliance judgement has been made; licensing must
+be reviewed manually before public redistribution. (For reference only: the
 upstream osrf/gazebo_models repository declares its content to be
 Apache License 2.0 / CC-BY 4.0 at repository level, but the vendored copies
 themselves carry no license text.)
 
 ----------------------------------------------------------------------
-1. person_standing  (src/tb3_frontier_exploration/models/person_standing)
+1. person_standing  (src/tb3_bringup/models/person_standing)
 ----------------------------------------------------------------------
 model.config metadata (verbatim):
   name:        Standing person
@@ -32,29 +38,7 @@ model.config metadata (verbatim):
 Bundled license file: none found in model directory.
 
 ----------------------------------------------------------------------
-2. table_marble  (src/tb3_frontier_exploration/models/table_marble)
-----------------------------------------------------------------------
-model.config metadata (verbatim):
-  name:        Table Marble
-  version:     1.0
-  author:      Ian Chen <ichen@osrfoundation.org>
-  description: A marble table lit using a lightmap generated from a
-               directional light with the vector (-0.6, -0.05, -0.8).
-Bundled license file: none found in model directory.
-
-----------------------------------------------------------------------
-3. stop_sign  (src/tb3_frontier_exploration/models/stop_sign)
-----------------------------------------------------------------------
-model.config metadata (verbatim):
-  name:        Stop Sign
-  version:     1.0
-  authors:     Cole Biesemeyer <cole.bsmr@gmail.com>
-               Nate Koenig <natekoenig@gmail.com>
-  description: A stop sign.
-Bundled license file: none found in model directory.
-
-----------------------------------------------------------------------
-4. ground_plane  (src/tb3_frontier_exploration/models/ground_plane)
+2. ground_plane  (src/tb3_bringup/models/ground_plane)
 ----------------------------------------------------------------------
 model.config metadata (verbatim):
   name:        Ground Plane
@@ -64,7 +48,7 @@ model.config metadata (verbatim):
 Bundled license file: none found in model directory.
 
 ----------------------------------------------------------------------
-5. sun  (src/tb3_frontier_exploration/models/sun)
+3. sun  (src/tb3_bringup/models/sun)
 ----------------------------------------------------------------------
 model.config metadata (verbatim):
   name:        Sun
@@ -74,7 +58,7 @@ model.config metadata (verbatim):
 Bundled license file: none found in model directory.
 
 ----------------------------------------------------------------------
-6. VisitorChair  (src/tb3_frontier_exploration/models/VisitorChair)
+4. VisitorChair  (src/tb3_bringup/models/VisitorChair)
 ----------------------------------------------------------------------
 Source:   https://app.gazebosim.org/OpenRobotics/fuel/models/VisitorChair
 Download: https://fuel.gazebosim.org/1.0/OpenRobotics/models/VisitorChair.zip
@@ -101,7 +85,7 @@ model.config metadata (verbatim):
   description: Blue chair for visitors
 
 ----------------------------------------------------------------------
-7. first_2015_trash_can  (src/tb3_frontier_exploration/models/first_2015_trash_can)
+5. first_2015_trash_can  (src/tb3_bringup/models/first_2015_trash_can)
 ----------------------------------------------------------------------
 Source:   https://app.gazebosim.org/OpenRobotics/fuel/models/FIRST%202015%20trash%20can
 Download: https://fuel.gazebosim.org/1.0/OpenRobotics/models/FIRST%202015%20trash%20can.zip

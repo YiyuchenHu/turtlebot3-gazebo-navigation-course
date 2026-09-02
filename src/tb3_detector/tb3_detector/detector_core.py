@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-detector_core.py  —  Stage-1 perception: YOLOv8 inference wrapper.
+detector_core.py  —  Stage-1 perception: YOLO26 inference wrapper.
 
 ████████████████████████████████████████████████████████████████████████████
 ██                                                                        ██
@@ -13,7 +13,7 @@ detector_core.py  —  Stage-1 perception: YOLOv8 inference wrapper.
 ████████████████████████████████████████████████████████████████████████████
 
 Responsibilities of this class:
-  - Load a YOLOv8 model from a configurable local path.
+  - Load a YOLO26 model from a configurable local path.
   - Run inference on a BGR numpy image (from cv_bridge).
   - Return a list of Detection dicts (format below).
 
@@ -28,7 +28,7 @@ OUTPUT CONTRACT — do not change key names; the provided localizer and the
 node wrapper (detector_node.py) rely on them:
 
     {
-        "label":      str,          # COCO class name, e.g. "person", "bench"
+        "label":      str,          # COCO class name, e.g. "person", "chair"
         "conf":       float,        # confidence, 0.0 – 1.0
         "bbox_xyxy":  [x1, y1, x2, y2],   # pixels (float), see convention below
         "track_id":   int | None,   # None unless you enable tracking
@@ -80,7 +80,7 @@ DETECTION_KEYS = ("label", "conf", "bbox_xyxy", "track_id")
 
 class DetectorCore:
     """
-    Thin wrapper around a YOLOv8 model.
+    Thin wrapper around a YOLO26 model.
 
     Usage::
 
@@ -91,17 +91,19 @@ class DetectorCore:
     Parameters
     ----------
     model_path : str | Path
-        Absolute or relative path to the YOLOv8 .pt weights file.
+        Absolute or relative path to the YOLO26 .pt weights file.
     conf_threshold : float
         Minimum confidence to include a detection (0.0 – 1.0).
-        The shipped config uses 0.12 — unusually low, but validated for this
-        Gazebo scene where the marble table is a borderline "bench". Typical
-        real-world values are 0.25 – 0.5. Tune in config/detector.yaml, not here.
+        The shipped config uses 0.35, set from a full-stack run: below it
+        yolo26n reports a phantom "traffic light" on clutter near the person
+        and plants a false trash-can landmark. Tune in config/detector.yaml,
+        not here.
     class_filter : list[str] | None
         If given, only return detections whose label is in this list.
         None means return all detected classes.
-        IMPORTANT: entries are COCO *detector labels* ("bench", "stop sign",
-        "person"), NOT the task-level semantic names — see the mapping note below.
+        IMPORTANT: entries are COCO *detector labels* ("person",
+        "traffic light", "chair"), NOT the task-level semantic names — see
+        the mapping note below.
     device : str
         Torch device string, e.g. "cpu", "cuda:0".
     enable_tracking : bool
@@ -111,21 +113,22 @@ class DetectorCore:
     ------------------------------------------------------------------------
     COCO label → task label mapping (important!)
     ------------------------------------------------------------------------
-    YOLOv8's COCO-80 class names do not always match what this project calls
+    YOLO26's COCO-80 class names do not always match what this project calls
     an object. The mapping used by the rest of the stack lives in
     src/tb3_bringup/config/semantic_targets.yaml:
 
         task name    COCO detector_label      Gazebo model
         ---------    -------------------      ------------
         person   ←   "person"                 person_standing
-        table    ←   "bench"     (class 13)   table_marble
-        stop_sign ←  "stop sign" (class 12,   stop_sign
-                      note the space!)
+        trash_can ←  "traffic light"          first_2015_trash_can
+        chair    ←   "chair"                  VisitorChair
 
-    In this simulation YOLO sees the marble table as a *bench* — do NOT
-    expect "dining table" (COCO class 60); it does not fire reliably here.
-    DetectorCore simply reports raw COCO labels; the provided downstream
-    nodes translate them using semantic_targets.yaml.
+    The trash can is the reason this mapping exists: COCO has no trash-can
+    class, and yolo26n consistently calls that model a *traffic light*. Do
+    not "fix" it by renaming — the whole point is that detector_label and
+    semantic_name are separate fields. DetectorCore simply reports raw COCO
+    labels; the provided downstream nodes translate them using
+    semantic_targets.yaml.
     """
 
     def __init__(
@@ -157,7 +160,7 @@ class DetectorCore:
             wget -O src/tb3_detector/models/yolo26n.pt \
               https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
 
-        then rebuild (colcon build --packages-select tb3_detector) so the file
+        then rebuild (colcon build --symlink-install --packages-select tb3_detector) so the file
         is copied into the install tree, or pass an absolute model_path.
         """
         if not _ULTRALYTICS_AVAILABLE:
@@ -171,7 +174,7 @@ class DetectorCore:
                 "► See INSTRUCTIONS.md → model download step."
             )
 
-        logger.info("Loading YOLOv8 model from %s on device=%s", self.model_path, self.device)
+        logger.info("Loading YOLO26 model from %s on device=%s", self.model_path, self.device)
         self._model = _UltralyticsYOLO(str(self.model_path))
         self._model.to(self.device)
         logger.info("Model loaded. Classes: %s", list(self._model.names.values()))

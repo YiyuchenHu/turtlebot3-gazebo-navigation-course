@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
 """
-semantic_runtime_debug_node.py — Lightweight runtime diagnostics for person vs bench perception.
+semantic_runtime_debug_node.py — runtime diagnostics for the three live targets.
 
-Subscribes to the detector, localizer, and memory topics without modifying any
-existing node.  Periodically prints a concise summary and optionally writes a
-CSV log for offline analysis.
+Subscribes to the detector, localizer and memory topics without modifying any
+existing node.  Every `summary_interval_sec` it prints one block that walks a
+target through the whole pipeline, so you can see WHICH STAGE is losing it:
 
-Launch together with full_stack.launch.py:
+    detect  ->  localize  ->  remember
+
+That is the question this node exists to answer.  "The chair never shows up in
+RViz" has three completely different fixes depending on whether YOLO never saw
+it (conf_threshold / viewing angle), the localizer saw it but could not attach
+a LiDAR range (scan_window_half / range gates), or memory saw it but never
+promoted it (chair_min_observations).
+
+Counting is done by DETECTOR LABEL, because that is what every topic in the
+chain carries.  Two of the three labels are not the semantic name — the trash
+can is COCO "traffic light" — so the table prints both.
+
+Launch it alongside the backend:
+    ros2 launch tb3_bringup backend.launch.py use_runtime_debug:=true
     ros2 launch tb3_bringup full_stack.launch.py use_runtime_debug:=true
 """
 
@@ -27,7 +40,23 @@ from vision_msgs.msg import Detection2DArray, Detection3DArray
 
 class SemanticRuntimeDebugNode(Node):
 
-    FOCUS_CLASSES = {"bench", "person"}
+    # Detector labels of the three enabled targets in
+    # tb3_bringup/config/semantic_targets.yaml, in report order.
+    FOCUS_CLASSES = ("person", "traffic light", "chair")
+
+    # detector_label -> semantic_name, so the table can print both and nobody
+    # has to remember why the trash can is called a traffic light.
+    SEMANTIC_NAME = {
+        "person": "person",
+        "traffic light": "trash_can",
+        "chair": "chair",
+    }
+
+    # The one pair yolo26n actually confuses: a partially clipped chair and a
+    # partially clipped trash can swap labels (coordinator.yaml raises both
+    # promotion thresholds to 12 because of exactly this).  Frames where both
+    # labels land on the SAME pixels are the observable signature.
+    SWAP_PAIR = ("chair", "traffic light")
 
     def __init__(self):
         super().__init__("semantic_runtime_debug_node")
@@ -40,12 +69,16 @@ class SemanticRuntimeDebugNode(Node):
         self.declare_parameter("localized_topic", "/localizer_node/localized_objects")
         self.declare_parameter("memory_topic", "/semantic_memory_node/objects")
         self.declare_parameter("camera_topic", "/camera/image_raw")
+        # Two boxes of different classes overlapping by more than this are
+        # treated as one object claimed by two labels.
+        self.declare_parameter("swap_iou_threshold", 0.5)
 
         det_topic = self.get_parameter("detections_topic").value
         dbg_topic = self.get_parameter("debug_image_topic").value
         loc_topic = self.get_parameter("localized_topic").value
         mem_topic = self.get_parameter("memory_topic").value
         cam_topic = self.get_parameter("camera_topic").value
+        self._swap_iou = float(self.get_parameter("swap_iou_threshold").value)
 
         reliable_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -71,9 +104,11 @@ class SemanticRuntimeDebugNode(Node):
 
         self._det_count = defaultdict(int)
         self._det_conf_sum = defaultdict(float)
+        self._det_conf_min = {}
         self._loc_count = defaultdict(int)
+        self._loc_range_sum = defaultdict(float)
         self._mem_active = defaultdict(int)
-        self._confusion = defaultdict(int)
+        self._swap_frames = 0
 
         self._cam_times = []
         self._det_times = []
@@ -90,17 +125,24 @@ class SemanticRuntimeDebugNode(Node):
         self._csv_file = None
         if self.get_parameter("csv_log_enabled").value:
             log_dir = self.get_parameter("csv_log_dir").value
-            Path(log_dir).mkdir(parents=True, exist_ok=True)
-            ts = time.strftime("%Y%m%d_%H%M%S")
-            csv_path = os.path.join(log_dir, f"semantic_debug_{ts}.csv")
-            self._csv_file = open(csv_path, "w", newline="")
-            self._csv_writer = csv.writer(self._csv_file)
-            self._csv_writer.writerow([
-                "wall_time", "source", "class", "confidence",
-                "bbox_cx", "bbox_cy", "bbox_w", "bbox_h",
-                "x", "y", "range_m", "bearing_deg",
-            ])
-            self.get_logger().info(f"CSV log -> {csv_path}")
+            try:
+                Path(log_dir).mkdir(parents=True, exist_ok=True)
+                ts = time.strftime("%Y%m%d_%H%M%S")
+                csv_path = os.path.join(log_dir, f"semantic_debug_{ts}.csv")
+                self._csv_file = open(csv_path, "w", newline="")
+            except OSError as exc:
+                # A read-only or missing log dir must not take the node down:
+                # this is an opt-in diagnostic, not part of the pipeline.
+                self.get_logger().warning(
+                    f"CSV logging disabled, could not open {log_dir}: {exc}")
+            else:
+                self._csv_writer = csv.writer(self._csv_file)
+                self._csv_writer.writerow([
+                    "wall_time", "source", "class", "confidence",
+                    "bbox_cx", "bbox_cy", "bbox_w", "bbox_h",
+                    "x", "y", "range_m", "bearing_deg",
+                ])
+                self.get_logger().info(f"CSV log -> {csv_path}")
 
     def destroy_node(self):
         if self._csv_file:
@@ -122,22 +164,24 @@ class SemanticRuntimeDebugNode(Node):
         self._det_times.append(now)
         self._trim(self._det_times)
 
-        labels_this_frame = []
+        boxes_this_frame = []
         for det in msg.detections:
             if not det.results:
                 continue
             best = max(det.results, key=lambda r: r.hypothesis.score)
             label = best.hypothesis.class_id
             conf = best.hypothesis.score
-            labels_this_frame.append(label)
 
             self._det_count[label] += 1
             self._det_conf_sum[label] += conf
+            prev = self._det_conf_min.get(label)
+            self._det_conf_min[label] = conf if prev is None else min(prev, conf)
 
             cx = det.bbox.center.position.x
             cy = det.bbox.center.position.y
             bw = det.bbox.size_x
             bh = det.bbox.size_y
+            boxes_this_frame.append((label, cx, cy, bw, bh))
 
             if self._csv_writer:
                 self._csv_writer.writerow([
@@ -146,7 +190,7 @@ class SemanticRuntimeDebugNode(Node):
                     "", "", "", "",
                 ])
 
-        self._check_confusion(labels_this_frame)
+        self._check_label_swap(boxes_this_frame)
 
     def _cb_localized(self, msg: Detection3DArray):
         now = time.monotonic()
@@ -165,6 +209,7 @@ class SemanticRuntimeDebugNode(Node):
             bearing = math.degrees(math.atan2(-y, x)) if rng > 0.01 else 0.0
 
             self._loc_count[label] += 1
+            self._loc_range_sum[label] += rng
 
             if self._csv_writer:
                 self._csv_writer.writerow([
@@ -182,18 +227,38 @@ class SemanticRuntimeDebugNode(Node):
             snapshot[label] += 1
         self._mem_active = snapshot
 
-    # -- Confusion analysis --
+    # -- Label-swap analysis --
 
-    def _check_confusion(self, labels):
-        n_person = labels.count("person")
-        n_bench = labels.count("bench")
-        has_bench = n_bench > 0
-        has_person = n_person > 0
+    @staticmethod
+    def _iou(a, b):
+        """IoU of two (cx, cy, w, h) boxes in pixels."""
+        _, acx, acy, aw, ah = a
+        _, bcx, bcy, bw, bh = b
+        ax0, ax1 = acx - aw / 2.0, acx + aw / 2.0
+        ay0, ay1 = acy - ah / 2.0, acy + ah / 2.0
+        bx0, bx1 = bcx - bw / 2.0, bcx + bw / 2.0
+        by0, by1 = bcy - bh / 2.0, bcy + bh / 2.0
+        ix = max(0.0, min(ax1, bx1) - max(ax0, bx0))
+        iy = max(0.0, min(ay1, by1) - max(ay0, by0))
+        inter = ix * iy
+        union = aw * ah + bw * bh - inter
+        return inter / union if union > 0 else 0.0
 
-        if has_person and not has_bench and n_person >= 2:
-            self._confusion["bench_as_person"] += 1
-        if has_bench and not has_person and n_bench >= 2:
-            self._confusion["person_as_bench"] += 1
+    def _check_label_swap(self, boxes):
+        """Count frames where the confusable pair claims the same pixels.
+
+        Unlike a bare co-occurrence count, this cannot fire just because both
+        objects are legitimately in view: it needs two boxes of DIFFERENT
+        classes sitting on top of each other, which is what a mislabel of one
+        physical object looks like.
+        """
+        a_boxes = [b for b in boxes if b[0] == self.SWAP_PAIR[0]]
+        b_boxes = [b for b in boxes if b[0] == self.SWAP_PAIR[1]]
+        for a in a_boxes:
+            for b in b_boxes:
+                if self._iou(a, b) >= self._swap_iou:
+                    self._swap_frames += 1
+                    return
 
     # -- Periodic summary --
 
@@ -217,35 +282,57 @@ class SemanticRuntimeDebugNode(Node):
         lines = [
             f"=== Semantic Debug #{self._summary_n}  t={elapsed:.0f}s ===",
             f"  FPS  cam={cam_fps:.1f}  det={det_fps:.1f}  dbg_img={dbg_fps:.1f}  loc={loc_fps:.1f}{dbg_lag}",
+            "  target      label           detect  avg_conf min_conf  localize  avg_m  memory",
         ]
 
-        for cls in ["person", "bench"]:
+        for cls in self.FOCUS_CLASSES:
             n = self._det_count.get(cls, 0)
             avg_c = (self._det_conf_sum[cls] / n) if n > 0 else 0.0
+            min_c = self._det_conf_min.get(cls, 0.0)
             n_loc = self._loc_count.get(cls, 0)
+            avg_r = (self._loc_range_sum[cls] / n_loc) if n_loc > 0 else 0.0
             n_mem = self._mem_active.get(cls, 0)
             lines.append(
-                f"  {cls:8s}  det={n:4d}  avg_conf={avg_c:.2f}  "
-                f"loc={n_loc:4d}  mem_active={n_mem}"
+                f"  {self.SEMANTIC_NAME[cls]:11s} {cls:15s} {n:6d}  {avg_c:8.2f} {min_c:8.2f}  "
+                f"{n_loc:8d} {avg_r:6.2f}  {n_mem:6d}"
             )
 
-        other_classes = set(self._det_count.keys()) - self.FOCUS_CLASSES
-        if other_classes:
-            others = ", ".join(
-                f"{c}={self._det_count[c]}" for c in sorted(other_classes)
-            )
-            lines.append(f"  other_det: {others}")
+        other = {c: n for c, n in self._det_count.items() if c not in self.FOCUS_CLASSES}
+        if other:
+            lines.append("  off-target detections (class_filter should exclude these): "
+                         + ", ".join(f"{c}={n}" for c, n in sorted(other.items())))
 
-        if any(v > 0 for v in self._confusion.values()):
-            parts = [f"{k}={v}" for k, v in sorted(self._confusion.items()) if v > 0]
-            lines.append(f"  CONFUSION: {', '.join(parts)}")
+        # Per-stage diagnosis: name the stage that is losing each target.
+        #
+        # A stage that is not running at all must not be reported as a stage
+        # that is running badly. Running only T5 (detector) against
+        # detector_test.world is a normal thing to do, and blaming
+        # localizer.yaml for it would send a student to the wrong file.
+        localizer_silent = loc_fps == 0.0 and sum(self._loc_count.values()) == 0
+        memory_silent = not self._mem_active
+        if localizer_silent:
+            lines.append("  [localize] no messages on the localizer topic at all — "
+                         "is Terminal 4 (localizer.launch.py) running?")
+        for cls in self.FOCUS_CLASSES:
+            name = self.SEMANTIC_NAME[cls]
+            n, n_loc = self._det_count.get(cls, 0), self._loc_count.get(cls, 0)
+            n_mem = self._mem_active.get(cls, 0)
+            if n == 0:
+                lines.append(f"  [detect]   {name}: not seen yet — check viewing angle, "
+                             f"distance, and detector.yaml conf_threshold/class_filter")
+            elif n_loc == 0 and not localizer_silent:
+                lines.append(f"  [localize] {name}: detected {n}x but never localized — LiDAR "
+                             f"association failing (localizer.yaml scan_window_half / "
+                             f"min_valid_range / max_valid_range)")
+            elif n_loc > 0 and n_mem == 0 and not memory_silent:
+                lines.append(f"  [remember] {name}: localized {n_loc}x but not in memory yet — "
+                             f"below its promotion threshold in coordinator.yaml")
 
-        bench_det = self._det_count.get("bench", 0)
-        bench_loc = self._loc_count.get("bench", 0)
-        if bench_det > 0 and bench_loc == 0:
-            lines.append("  WARNING bench detected but NEVER localized (LiDAR association fail?)")
-        elif bench_det == 0:
-            lines.append("  WARNING bench NEVER detected by YOLO so far")
+        if self._swap_frames:
+            lines.append(
+                f"  LABEL SWAP: {self._swap_frames} frame(s) where "
+                f"'{self.SWAP_PAIR[0]}' and '{self.SWAP_PAIR[1]}' boxes overlapped "
+                f"(IoU >= {self._swap_iou:.2f}) — one object claimed by both labels")
 
         self.get_logger().info("\n".join(lines))
 

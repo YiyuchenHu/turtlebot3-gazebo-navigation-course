@@ -12,3 +12,12 @@ __pycache__/
 
 # Internal reports (never committed to the course repo)
 reports/
+
+# Editor / OS clutter
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

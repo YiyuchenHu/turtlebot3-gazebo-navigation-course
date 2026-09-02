@@ -335,17 +335,19 @@ private:
 
   /**
    * @brief Sample the latest global costmap at world coordinates and expose the grid indices used.
-   *cd ~/TurtleBot3-semantic-navigation
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-ros2 launch tb3_coordinator course_backend.launch.py
+   *
+   * Bring the node up with the rest of the backend:
+   *   cd ~/turtlebot3-gazebo-navigation-course
+   *   source /opt/ros/humble/setup.bash && source install/setup.bash
+   *   ros2 launch tb3_bringup backend.launch.py
+   *
    * @param wx World x (meters) in the costmap’s frame.
    * @param wy World y (meters) in the costmap’s frame.
    * @param out_mx Output: computed grid column before clamping (may be outside [0,width) if OOB).
    * @param out_my Output: computed grid row before clamping (may be outside [0,height) if OOB).
-   * @return Occupancy/cost byte as `int` (0–253 typical for costmaps), **255** if (wx,wy) maps outside
-   *         the grid, or **-1** if no costmap message has been received yet.
+   * @return Occupancy value as `int`. /global_costmap/costmap is an OccupancyGrid, so a known cell is
+   *         0–100 (99 = inscribed, 100 = lethal); a cell the costmap marks unknown comes back as **255**
+   *         via the unsigned cast, as does a (wx,wy) outside the grid; **-1** means no costmap yet.
    *
    * Pipeline role:
    * - Implements the safety gate between “interesting frontier” and “publishable goal”: high cost or OOB

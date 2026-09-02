@@ -8,8 +8,8 @@
     Stage-3 perception: semantic memory that maintains stable object identities
     by matching incoming localized observations against an in-memory registry.
   </description>
-  <maintainer email="user@todo.todo">Your Name</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="yih226@lehigh.edu">Yiyuchen Hu</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
 

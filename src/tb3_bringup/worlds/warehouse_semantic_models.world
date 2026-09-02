@@ -18,10 +18,10 @@
 
   Semantic Target Set (matches config/semantic_targets.yaml):
 
-    semantic_name   detector_label   gazebo_model      Position
-    table           bench            table_marble      ( 0.7,  1.5)
-    stop_sign       stop sign        stop_sign         (-0.8, -2.35)
-    person          person           person_standing   ( 0.6, -2.2)
+    semantic_name   detector_label   gazebo_model           Position
+    trash_can       traffic light    first_2015_trash_can   ( 0.7,  1.5)
+    chair           chair            VisitorChair           (-1.3,  2.4)
+    person          person           person_standing        ( 0.6, -2.2)
 
   Robot spawn: recommended (0, 0) or (-1.2, -1.2) facing +X.
 -->
@@ -125,7 +125,7 @@
     </model>
 
     <!-- ================================================================
-         SEMANTIC OBJECTS — vendored in src/tb3_frontier_exploration/models
+         SEMANTIC OBJECTS — vendored in src/tb3_bringup/models
          (see NOTICE for sources and licenses). Object choice and placement
          distances come from the F1 ablation: every target here is both
          detectable by yolo26n AND solid to the LDS-01 from 0 to 0.3 m, which

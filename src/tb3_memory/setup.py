@@ -15,10 +15,10 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="Your Name",
-    maintainer_email="user@todo.todo",
+    maintainer="Yiyuchen Hu",
+    maintainer_email="yih226@lehigh.edu",
     description="Stage-3 perception: semantic memory for TB3 semantic navigation.",
-    license="Apache-2.0",
+    license="MIT",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
