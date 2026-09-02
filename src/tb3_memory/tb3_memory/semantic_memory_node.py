@@ -9,7 +9,6 @@ publishes the current world state.
 Subscribed topics
 -----------------
   /localizer_node/localized_objects   vision_msgs/Detection3DArray
-      (Detection3D.id = detector track_id when tracking is on, else "")
 
 Published topics
 ----------------
@@ -125,7 +124,6 @@ class SemanticMemoryNode(Node):
                 y=y,
                 frame_id=msg.header.frame_id,
                 timestamp=stamp_sec,
-                track_id=det.id or None,
             )
 
             obj = self._core.update(obs)

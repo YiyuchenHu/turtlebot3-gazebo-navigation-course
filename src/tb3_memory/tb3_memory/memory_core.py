@@ -8,9 +8,8 @@ matched to an existing entry (same label, close enough spatially) or create a
 fresh entry.
 
 Pipeline per observation:
-    (label, confidence, x, y, timestamp[, track_id])
-        → match by label + track_id when the detector supplies one
-        → else match against registry by label + distance
+    (label, confidence, x, y, timestamp)
+        → match against registry by label + distance
         → update existing  OR  create new
         → periodic aging marks stale / removes forgotten objects
 
@@ -37,7 +36,6 @@ class SemanticObject:
     times_seen: int
     last_seen: float          # timestamp in seconds
     active: bool = True
-    track_id: Optional[str] = None   # last detector track id merged into this object
 
 
 @dataclass
@@ -50,7 +48,6 @@ class Observation:
     y: float
     frame_id: str
     timestamp: float          # seconds
-    track_id: Optional[str] = None   # detector track id, None/"" when tracking is off
 
 
 class MemoryCore:
@@ -112,21 +109,7 @@ class MemoryCore:
     # ------------------------------------------------------------------
 
     def _find_match(self, obs: Observation) -> Optional[SemanticObject]:
-        """Same label and same track_id first; else the closest same-label object
-        within the distance threshold.
-
-        A track id is the detector's own statement that this box is the same
-        physical object as an earlier box, so it is trusted ahead of geometry:
-        two persons standing 0.8 m apart stay two objects even though nearest
-        neighbour would merge them. Without a track id (tracking off, or the
-        tracker dropped the box) the behaviour is exactly the pre-tracking one.
-        """
-        tid = obs.track_id or None
-        if tid is not None:
-            for obj in self._objects.values():
-                if obj.detector_label == obs.detector_label and obj.track_id == tid:
-                    return obj
-
+        """Find the closest existing object with the same label within threshold."""
         best: Optional[SemanticObject] = None
         best_dist = float("inf")
 
@@ -155,8 +138,6 @@ class MemoryCore:
         obj.times_seen += 1
         obj.last_seen = obs.timestamp
         obj.active = True
-        if obs.track_id:
-            obj.track_id = obs.track_id
 
     def _create_new(self, obs: Observation) -> SemanticObject:
         seq = self._next_id.get(obs.detector_label, 0)
@@ -173,7 +154,6 @@ class MemoryCore:
             times_seen=1,
             last_seen=obs.timestamp,
             active=True,
-            track_id=obs.track_id or None,
         )
         self._objects[oid] = obj
         return obj

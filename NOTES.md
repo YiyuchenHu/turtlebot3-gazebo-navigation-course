@@ -874,6 +874,19 @@ and the YAML), or the detector silently keeps loading the old file while the
 config claims otherwise. `scripts/acceptance_run.py::check_weights()` reads the
 YAML, so it would not catch the mismatch either.
 
+**ByteTrack was tried and reverted (2026-09-03).** `enable_tracking: true`
+plus a track_id-first association in `tb3_memory` (the commit and its revert
+are both in the history) doubled the time to confirm all three landmarks in
+the three-target world — 214–262 s against 92–126 s — with landmark error,
+ghosts and swaps unchanged. The mechanism is in the logs: matching by track id
+lets an observation the 1.0 m distance gate would have rejected merge into an
+object anyway (a chair box clipped at the frame edge whose LiDAR ray hit the
+trash can keeps the chair's id), so object positions wander, the map memory's
+candidates wander with them and the 12-observation promotion takes longer.
+If tracking is attempted again, keep the distance gate even on an id match
+(treat "same id, > 1 m away" as a tracker id swap) and note that ByteTrack
+only reports *activated* tracks, so a new object's first frame is dropped.
+
 **`Managed nodes are active` is ambiguous.** When waiting for Nav2 to come up
 in T2, the readiness signal is
 `[lifecycle_manager_navigation]: Managed nodes are active`.
