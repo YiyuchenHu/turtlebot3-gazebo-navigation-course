@@ -14,7 +14,8 @@ Subscribed topics
 Published topics
 ----------------
   ~/object_points             geometry_msgs/PointStamped   (one msg per localised detection)
-  ~/localized_objects         vision_msgs/Detection3DArray (batch per callback, for Stage-3 memory)
+  ~/localized_objects         vision_msgs/Detection3DArray (batch per callback, for Stage-3 memory;
+                              Detection3D.id carries the detector's track_id when tracking is on)
 
 Parameters  (see config/localizer.yaml)
 ----------
@@ -191,6 +192,9 @@ class LocalizerNode(Node):
             d3.bbox.center.position.x = result.x
             d3.bbox.center.position.y = result.y
             d3.bbox.center.position.z = 0.0
+            # Pass the detector's track id through untouched ("" when tracking
+            # is off); tb3_memory uses it to associate observations.
+            d3.id = det.id
 
             det3d_array.detections.append(d3)
 

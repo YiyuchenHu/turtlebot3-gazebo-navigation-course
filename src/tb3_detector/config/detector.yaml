@@ -34,7 +34,13 @@ detector_node:
     # "traffic light" 0.36 m from the robot to plant a false landmark.)
     conf_threshold: 0.40
     device: "cpu"                     # "cpu" | "cuda:0"
-    enable_tracking: false            # true = ByteTrack; track_id populated
+    # ByteTrack on: every detection carries a track_id that survives frames
+    # (Detection2D.id, then Detection3D.id through the localizer), and
+    # tb3_memory matches an observation to the object with the same track_id
+    # before falling back to nearest-neighbour. Costs +N ms/frame on the CPU
+    # (scripts/bench_detector_cpu.py --track); false or an empty id restores
+    # the pre-tracking behaviour exactly.
+    enable_tracking: true             # true = ByteTrack; track_id populated
 
     # ── Class filter ───────────────────────────────────────
     # List detector_label values from semantic_targets.yaml (validated in sim).
