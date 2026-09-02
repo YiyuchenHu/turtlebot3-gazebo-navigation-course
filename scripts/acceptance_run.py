@@ -74,10 +74,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #                       semantic map memory before the command stage may start.
 #                       Keys are the raw detector labels, because that is what
 #                       lands in Detection3DArray.results[0].hypothesis.class_id
-#                       and what the landmark ids are built from.  Note the
-#                       space inside "traffic light": COCO has no trash-can
-#                       class, so the trash can is detected as a traffic light
-#                       and its landmark id reads "traffic light_0".
+#                       and what the landmark ids are built from.  With the
+#                       fine-tuned tb3det_yolo26n weights they equal the
+#                       semantic names, so the trash can's id is "trash_can_0"
+#                       (with the COCO weights it was "traffic light_0").
 #   truth               Gazebo entity name -> (x, y) fallback taken from the
 #                       .world file.  At run time the real pose is read back
 #                       from the running simulation with `gz model -m NAME -p`;
@@ -116,7 +116,7 @@ WORLDS: Dict[str, dict] = {
         "world_file": "warehouse_semantic_models.world",
         "summary": "4x6 m room, 1 person + 1 trash can + 1 chair "
                    "(all three semantic targets)",
-        "expected_landmarks": {"person": 1, "traffic light": 1, "chair": 1},
+        "expected_landmarks": {"person": 1, "trash_can": 1, "chair": 1},
         "truth": {
             "semantic_person":    (0.60, -2.20),
             "semantic_trash_can": (0.70,  1.50),
@@ -125,7 +125,7 @@ WORLDS: Dict[str, dict] = {
         "commands": (
             {"command": "go to person 0",  "landmark": "person_0",
              "truth_entities": ("semantic_person",)},
-            {"command": "go to trash can", "landmark": "traffic light_0",
+            {"command": "go to trash can", "landmark": "trash_can_0",
              "truth_entities": ("semantic_trash_can",)},
             {"command": "go to chair",     "landmark": "chair_0",
              "truth_entities": ("semantic_chair",)},
@@ -289,8 +289,8 @@ BENIGN_EXCEPTION_RE = re.compile(
 STATUS_REACHED = "[TARGET_REACHED]"
 STATUS_FAILED = "[TARGET_FAILED]"
 # "target selected: person_0 (person) at (0.61, -2.19) - waiting for goal pose"
-# The id may contain a space ("traffic light_0"), hence the non-greedy capture
-# up to the parenthesised semantic name.
+# An id may contain a space (COCO's "traffic light_0"), hence the non-greedy
+# capture up to the parenthesised semantic name.
 SELECTED_RE = re.compile(
     r"target selected:\s*(?P<id>.+?)\s*\((?P<name>[^()]*)\)\s*at\s*"
     r"\((?P<x>-?\d+(?:\.\d+)?),\s*(?P<y>-?\d+(?:\.\d+)?)\)"
@@ -1319,9 +1319,10 @@ def print_plan(args: argparse.Namespace) -> None:
 
 
 def check_weights() -> None:
-    """Fail now, not after a 300 s T5 timeout, if the weights were never fetched.
+    """Fail now, not after a 300 s T5 timeout, if the weights are not installed.
 
-    *.pt is git-ignored, so a fresh clone has no weights at all: DetectorCore
+    The fine-tuned weights are committed, but they only reach install/ when
+    tb3_detector has been built since the checkout: otherwise DetectorCore
     raises on load, T5 never prints "detector_node ready", and the operator
     waits out the whole T5 timeout with Gazebo, Nav2 and the backend already up.
     """
@@ -1343,8 +1344,9 @@ def check_weights() -> None:
     if not os.path.exists(installed):
         die("detector weights %s not found at\n"
             "            %s\n"
-            "            Download them and rebuild tb3_detector -- see "
-            "INSTRUCTIONS.md, Step 2." % (name, installed))
+            "            Rebuild tb3_detector (colcon build --symlink-install "
+            "--packages-select tb3_detector) -- see INSTRUCTIONS.md, Step 1."
+            % (name, installed))
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

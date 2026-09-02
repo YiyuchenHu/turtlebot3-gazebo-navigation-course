@@ -11,7 +11,7 @@
     semantic_name    detector_label    gazebo_model          Placement
     ─────────────    ──────────────    ────────────          ─────────
     person           person            person_standing       2.0 m @   0°
-    trash_can        traffic light     first_2015_trash_can   2.2 m @ -45°
+    trash_can        trash_can         first_2015_trash_can   2.2 m @ -45°
     chair            chair             VisitorChair           3.0 m @ +45°
   ═════════════════════════════════════════════════════════════════════════════
 
@@ -105,7 +105,8 @@
     <!-- ═══════════════════════════════════════════════════════════════
          OBJECT 2 — Trash can
          semantic_name:    "trash_can"
-         detector_label:   "traffic light"   (COCO has no trash-can class)
+         detector_label:   "trash_can"   ("traffic light" with the COCO weights, which
+                                          have no trash-can class)
          gazebo_model_name: first_2015_trash_can
 
          Pose: (1.556, -1.556, 0) — 2.2 m at −45°, to the robot's right.
@@ -127,7 +128,7 @@
          Yaw +1.571 rad (+90°). Measured in this world, robot facing the
          chair, 200-frame samples per orientation:
 
-             chair yaw   detected as "chair"   detected as "traffic light"
+             chair yaw   detected as "chair"   detected as "traffic light" (COCO weights, 2026-08)
              ─────────   ───────────────────   ───────────────────────────
               +1.571      227 @ conf 0.79       0            ← chosen
               −1.571      174 @ conf 0.63       0

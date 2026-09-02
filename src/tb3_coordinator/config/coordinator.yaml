@@ -65,7 +65,7 @@ semantic_map_memory_node:
     # ── Promotion ──────────────────────────────────────────
     # Generic fallback for any class without a class-specific override
     # below. All three enabled targets DO have overrides (person 8,
-    # chair 12, traffic_light 12), so nothing currently reaches this value;
+    # chair 12, trash_can 12), so nothing currently reaches this value;
     # it only matters if you add a fourth target to semantic_targets.yaml.
     min_observations:         3
 
@@ -91,7 +91,7 @@ semantic_map_memory_node:
     # ── Class-aware gating ────────────────────────────
     person_max_range_m:        2.5
     chair_max_range_m:         3.2
-    traffic_light_max_range_m: 3.2
+    trash_can_max_range_m:     3.2
     # Promotion threshold for `person` candidates. Bumped 3 → 8 to
     # filter out ghost landmarks created by transient mis-projections
     # near a real person (typical symptom: a `person_N` with n=4 or
@@ -100,15 +100,17 @@ semantic_map_memory_node:
     # n ≥ 19 once the bot finishes exploring, so 8 is well below the
     # natural support of every legitimate landmark.
     person_min_observations:   8
-    # chair and trash can (detector label "traffic light") get 12, not 3.
-    # Measured 2026-08-27: when either object sits at the edge of the frame it
-    # is partially clipped and yolo26n swaps the two labels, which planted a
-    # `chair` landmark on the trash can and a `traffic light` landmark on the
-    # chair. Those mistakes stall at ~3 observations while the genuine
-    # landmarks reach n = 50-100, so 12 separates them cleanly and is still far
-    # below the real support.
+    # chair and trash can get 12, not 3. Measured 2026-08-27 with the COCO
+    # weights: when either object sat at the edge of the frame, partially
+    # clipped, yolo26n swapped the two labels, which planted a `chair` landmark
+    # on the trash can and a trash-can landmark on the chair. Those mistakes
+    # stalled at ~3 observations while the genuine landmarks reach n = 50-100,
+    # so 12 separated them cleanly and is still far below the real support.
+    # The fine-tuned tb3det_yolo26n weights confirm landmarks much faster and
+    # have not produced a swap; the thresholds are deliberately left at 12
+    # until a separate tuning round lowers them (see NOTES.md).
     chair_min_observations:    12
-    traffic_light_min_observations: 12
+    trash_can_min_observations: 12
     wall_boundary_margin_m:   0.20
 
     # ── Visualization ──────────────────────────────────────

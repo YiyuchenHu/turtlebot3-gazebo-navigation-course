@@ -15,8 +15,9 @@ a LiDAR range (scan_window_half / range gates), or memory saw it but never
 promoted it (chair_min_observations).
 
 Counting is done by DETECTOR LABEL, because that is what every topic in the
-chain carries.  Two of the three labels are not the semantic name — the trash
-can is COCO "traffic light" — so the table prints both.
+chain carries.  With the fine-tuned weights the three labels equal the semantic
+names; the table still prints both so it keeps working with COCO weights, where
+the trash can is reported as "traffic light".
 
 Launch it alongside the backend:
     ros2 launch tb3_bringup backend.launch.py use_runtime_debug:=true
@@ -42,21 +43,24 @@ class SemanticRuntimeDebugNode(Node):
 
     # Detector labels of the three enabled targets in
     # tb3_bringup/config/semantic_targets.yaml, in report order.
-    FOCUS_CLASSES = ("person", "traffic light", "chair")
+    FOCUS_CLASSES = ("person", "trash_can", "chair")
 
-    # detector_label -> semantic_name, so the table can print both and nobody
-    # has to remember why the trash can is called a traffic light.
+    # detector_label -> semantic_name, so the table can print both.  The COCO
+    # alias is kept so the node still counts correctly if someone runs the
+    # optional COCO yolo26n comparison (NOTES.md), where the trash can is
+    # reported as "traffic light".
     SEMANTIC_NAME = {
         "person": "person",
+        "trash_can": "trash_can",
         "traffic light": "trash_can",
         "chair": "chair",
     }
 
-    # The one pair yolo26n actually confuses: a partially clipped chair and a
-    # partially clipped trash can swap labels (coordinator.yaml raises both
-    # promotion thresholds to 12 because of exactly this).  Frames where both
-    # labels land on the SAME pixels are the observable signature.
-    SWAP_PAIR = ("chair", "traffic light")
+    # The one pair the COCO weights actually confused: a partially clipped
+    # chair and a partially clipped trash can swapped labels (coordinator.yaml
+    # raised both promotion thresholds to 12 because of exactly this).  Frames
+    # where both labels land on the SAME pixels are the observable signature.
+    SWAP_PAIR = ("chair", "trash_can")
 
     def __init__(self):
         super().__init__("semantic_runtime_debug_node")

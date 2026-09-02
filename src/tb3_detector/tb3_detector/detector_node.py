@@ -31,11 +31,11 @@ Published topics
 
 Parameters
 ----------
-  model_path              str   Path to yolo26*.pt (see INSTRUCTIONS.md)
-  conf_threshold          float 0.35 in the shipped config (see detector.yaml)
+  model_path              str   Path to the .pt weights (shipped: tb3det_yolo26n.pt)
+  conf_threshold          float 0.40 in the shipped config (see detector.yaml)
   device                  str   "cpu" | "cuda:0"
-  class_filter            list  [""] means all classes; COCO detector labels
-                                (shipped: "person", "traffic light", "chair")
+  class_filter            list  [""] means all classes; detector labels
+                                (shipped: "person", "trash_can", "chair")
   enable_tracking         bool  false
   publish_debug_image     bool  true
   image_topic             str   "/camera/image_raw"
@@ -195,8 +195,8 @@ class DetectorNode(Node):
         except Exception as exc:
             self.get_logger().error("DetectorCore failed to load: %s" % exc)
             self.get_logger().error(
-                "► Check INSTRUCTIONS.md: are ultralytics/torch installed and "
-                "is yolo26n.pt downloaded into src/tb3_detector/models/?"
+                "► Check INSTRUCTIONS.md: are ultralytics/torch installed, and "
+                "was tb3_detector rebuilt so models/tb3det_yolo26n.pt reached install/?"
             )
             raise
 

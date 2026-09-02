@@ -58,11 +58,13 @@ pip install 'ultralytics==8.4.31'
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
-**3. Detector weights** (`yolo26n.pt`, 5.54 MB — `*.pt` is git-ignored, so the
-file is downloaded, never committed)
+**3. Detector weights** — nothing to do. `src/tb3_detector/models/tb3det_yolo26n.pt`
+(5.4 MB, yolo26n fine-tuned on the three course targets) ships with the
+repository and is picked up by the build in step 4. The COCO `yolo26n.pt` it
+replaced is optional, for the comparison experiment in NOTES.md:
 
 ```bash
-cd ~/turtlebot3-gazebo-navigation-course
+# optional: COCO weights for the NOTES.md comparison (git-ignored)
 wget -O src/tb3_detector/models/yolo26n.pt \
   https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
 ```
@@ -131,7 +133,7 @@ before starting the next:
 | T2 | `ros2 launch tb3_bringup nav.launch.py` | SLAM Toolbox + Nav2 + RViz | Console prints `[lifecycle_manager_navigation]: Managed nodes are active` (~5–10 s); RViz shows a first gray map patch around the robot |
 | T3 | `ros2 launch tb3_bringup backend.launch.py` | Course backend: memory, semantic map memory, query, nav adapter, coordinator, warmup + frontier exploration | `CoordinatorNode ready — mode=EXPLORING` appears immediately; the robot does a short ±45° warm-up scan, then `frontier exploration enabled` (~10 s) and the robot starts exploring |
 | T4 | `ros2 launch tb3_bringup localizer.launch.py` | Localizer (bbox + LiDAR → object position) | `LocalizerNode ready` + `Image width learned: 640 px` (~1 s), then quiet until detections arrive |
-| T5 | `ros2 launch tb3_bringup detector.launch.py` | Detector: YOLO inference on the camera image (shipped weights: `yolo26n`) | `Model loaded. Classes: [...]` then `detector_node ready` (~3 s, first inference warms up torch); `ros2 topic echo /detector_node/detections` streams non-empty `detections` once an object is in view; RViz **Detector Debug Image** shows green bounding boxes |
+| T5 | `ros2 launch tb3_bringup detector.launch.py` | Detector: YOLO inference on the camera image (shipped weights: `tb3det_yolo26n`, fine-tuned) | `Model loaded. Classes: [...]` then `detector_node ready` (~3 s, first inference warms up torch); `ros2 topic echo /detector_node/detections` streams non-empty `detections` once an object is in view; RViz **Detector Debug Image** shows green bounding boxes |
 | T6 | *(no launch — the command console)* | Send user commands, watch status | — |
 
 T6 commands:
@@ -193,7 +195,7 @@ Four files cover almost every edit. Everything is under `src/`.
 |---|---|---|
 | **Use a different world** | `src/tb3_bringup/worlds/*.world`, and `WORLD_PRESETS` in `src/tb3_bringup/launch/sim.launch.py` to give it a `world:=` alias and a spawn pose | Objects the world places must exist in `src/tb3_bringup/models/`; add a new prop there first |
 | **Add or rename a semantic target** | `src/tb3_bringup/config/semantic_targets.yaml` | The one registry mapping `semantic_name` ↔ `detector_label` ↔ Gazebo model. Add the detector label to `class_filter` in `detector.yaml` too |
-| **Tune detector thresholds** | `src/tb3_detector/config/detector.yaml` | `conf_threshold`, `class_filter`, `device`. `class_filter` takes detector labels (`"traffic light"`), never semantic names |
+| **Tune detector thresholds** | `src/tb3_detector/config/detector.yaml` | `conf_threshold`, `class_filter`, `device`. `class_filter` takes detector labels (`"trash_can"`, or `"traffic light"` with the COCO weights), never semantic names |
 | **Tune exploration / goal assignment** | `src/tb3_frontier_exploration/config/params.yaml` | Frontier size, goal spacing, blacklist TTL. The thresholds interlock — see NOTES.md |
 | **Tune memory, query, approach pose** | `src/tb3_memory/config/`, `src/tb3_query/config/`, `src/tb3_nav_adapter/config/`, `src/tb3_coordinator/config/` | One YAML per package, named after the node it configures |
 | **Change RViz layout** | `src/tb3_bringup/rviz/semantic_nav.rviz` | Opened by `nav.launch.py`; `use_rviz:=false` turns it off |
@@ -270,7 +272,7 @@ Do **not** try to fix this by lowering `conf_threshold` or widening
 | Package | Role |
 |---|---|
 | `tb3_bringup` | every launch file, the RViz config, the Gazebo worlds, the vendored models and `semantic_targets.yaml`. No code of its own |
-| `tb3_detector` | YOLO detection on the camera image (`yolo26n`) |
+| `tb3_detector` | YOLO detection on the camera image (`tb3det_yolo26n`, fine-tuned yolo26n; weights included) |
 | `tb3_localizer` | bbox centre → bearing + LiDAR range → `(x, y)` in `base_link` |
 | `tb3_memory` | short-term memory, stable IDs `person_0…` |
 | `tb3_coordinator` | persistent map landmarks + the coordinator state machine |

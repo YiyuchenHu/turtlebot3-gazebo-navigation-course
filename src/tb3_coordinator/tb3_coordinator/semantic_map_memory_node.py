@@ -60,13 +60,13 @@ class Landmark:
 
 
 # Keyed by DETECTOR LABEL, because that is what `Landmark.semantic_class`
-# carries (landmark ids read `traffic light_0`, not `trash_can_0`). The three
+# carries and what the landmark ids are built from (`trash_can_0`). The three
 # keys are the enabled detector_label values in
 # tb3_bringup/config/semantic_targets.yaml; anything else falls back to grey.
 CLASS_COLORS = {
-    "person":        ColorRGBA(r=0.2, g=0.8, b=0.2, a=0.9),   # green
-    "traffic light": ColorRGBA(r=0.2, g=0.45, b=0.95, a=0.9),  # blue  = trash_can
-    "chair":         ColorRGBA(r=0.95, g=0.55, b=0.1, a=0.9),  # orange
+    "person":    ColorRGBA(r=0.2, g=0.8, b=0.2, a=0.9),   # green
+    "trash_can": ColorRGBA(r=0.2, g=0.45, b=0.95, a=0.9),  # blue
+    "chair":     ColorRGBA(r=0.95, g=0.55, b=0.1, a=0.9),  # orange
 }
 DEFAULT_COLOR = ColorRGBA(r=0.6, g=0.6, b=0.6, a=0.9)
 
@@ -348,10 +348,10 @@ class SemanticMapMemoryNode(Node):
         self.declare_parameter("max_observation_range_m", 2.5)
         self.declare_parameter("person_max_range_m", 2.5)
         self.declare_parameter("chair_max_range_m", 3.2)
-        self.declare_parameter("traffic_light_max_range_m", 3.2)
+        self.declare_parameter("trash_can_max_range_m", 3.2)
         self.declare_parameter("person_min_observations", 8)
         self.declare_parameter("chair_min_observations", 12)
-        self.declare_parameter("traffic_light_min_observations", 12)
+        self.declare_parameter("trash_can_min_observations", 12)
         self.declare_parameter("geometry_check_enabled", True)
         self.declare_parameter("geometry_check_radius_cells", 12)
         self.declare_parameter("person_max_islands", 2)
@@ -383,12 +383,12 @@ class SemanticMapMemoryNode(Node):
         self._class_max_range = {
             "person": self.get_parameter("person_max_range_m").value,
             "chair": self.get_parameter("chair_max_range_m").value,
-            "traffic light": self.get_parameter("traffic_light_max_range_m").value,
+            "trash_can": self.get_parameter("trash_can_max_range_m").value,
         }
         self._class_min_obs = {
             "person": self.get_parameter("person_min_observations").value,
             "chair": self.get_parameter("chair_min_observations").value,
-            "traffic light": self.get_parameter("traffic_light_min_observations").value,
+            "trash_can": self.get_parameter("trash_can_min_observations").value,
         }
 
         self._geom_enabled = self.get_parameter("geometry_check_enabled").value
@@ -555,14 +555,15 @@ class SemanticMapMemoryNode(Node):
         """
         if not self._mutex_enabled:
             return False, ""
-        # Labels this gate applies to. These are RAW detector labels, so the
-        # trash can appears as "traffic light". Keep every target that can be
-        # confused with another one here: measured 2026-08-27, yolo26n swaps
-        # "chair" and "traffic light" whenever either object sits at the edge of
-        # the frame and is partially clipped, which plants a chair landmark on
-        # the trash can and vice versa. The mutex lets the entry with more
-        # observations win, and the genuine one always has far more.
-        if label not in ("person", "chair", "traffic light"):
+        # Labels this gate applies to: the raw detector labels of the three
+        # targets. Keep every target that can be confused with another one
+        # here: measured 2026-08-27 with the COCO weights, yolo26n swapped
+        # "chair" and the trash can whenever either sat at the edge of the frame
+        # partially clipped, which planted a chair landmark on the trash can and
+        # vice versa. The fine-tuned weights have not shown the swap, but the
+        # mutex is cheap insurance: the entry with more observations wins, and
+        # the genuine one always has far more.
+        if label not in ("person", "chair", "trash_can"):
             return False, ""
 
         best_blocker = None

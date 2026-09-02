@@ -26,7 +26,7 @@ measurement, and approximations, which are written with a leading `~`.
 - [0. What the assignment teaches](#0-what-the-assignment-teaches)
 - [1. Why these three targets, and what was retired](#1-why-these-three-targets-and-what-was-retired)
 - [2. The perception parameters are one interlocked set](#2-the-perception-parameters-are-one-interlocked-set)
-- [3. Why `conf_threshold` is 0.35](#3-why-conf_threshold-is-035)
+- [3. Why `conf_threshold` is 0.40](#3-why-conf_threshold-is-040)
 - [4. `class_filter` and the airplane problem](#4-class_filter-and-the-airplane-problem)
 - [5. Known simplifications (intentional, documented)](#5-known-simplifications-intentional-documented)
 - [6. Measured results, and how they were measured](#6-measured-results-and-how-they-were-measured)
@@ -119,28 +119,31 @@ all and failed (2). Only the intersection ships.
 This is a genuinely transferable robotics lesson: perception targets are
 chosen against the *whole sensor suite*, not against the model zoo.
 
-### 1.4 Why `trash can` is detected as `traffic light`
+### 1.4 Why `semantic_name` and `detector_label` are separate fields
 
-COCO has no trash-can class. yolo26n reports the trash-can model as
-`traffic light`, and `semantic_targets.yaml` maps `traffic light` → `trash_can`:
+With the shipped fine-tuned weights (§6.5) the two columns agree:
 
-| `semantic_name` (task level) | `detector_label` (COCO) |
+| `semantic_name` (task level) | `detector_label` (what the weights emit) |
 |---|---|
 | `person` | `person` |
-| `trash_can` | `traffic light` |
+| `trash_can` | `trash_can` |
 | `chair` | `chair` |
 
-That mismatch is the whole reason `semantic_name` and `detector_label` are
-separate fields in the first place. A detector must report what the network
+They did **not** agree for the first three weeks of the course, and the reason
+is worth keeping. COCO has no trash-can class: the COCO `yolo26n` weights
+reported the trash-can model as `traffic light`, so `semantic_targets.yaml`
+mapped `traffic light` → `trash_can`. A detector must report what the network
 actually says; the *meaning* of a label is a downstream, task-level decision.
-Any `infer()` that "helpfully" renames `traffic light` to `trash_can` breaks
-the mapping — and breaks it silently, because the raw label simply stops
-matching the whitelist and the object quietly disappears.
+Any `infer()` that "helpfully" renamed `traffic light` to `trash_can` broke the
+mapping — and broke it silently, because the raw label simply stopped matching
+the whitelist and the object quietly disappeared.
 
-One visible consequence: landmark IDs are built from the **raw detector
-label**, so the live IDs read `person_0`, `traffic light_0` (with a space
-inside it) and `chair_0` — not `trash_can_0`. That space bites people writing
-scripts that parse landmark IDs.
+The fields stay separate for exactly that reason: swap the weights back to COCO
+(§6.5 tells you how) and only `semantic_targets.yaml` and `class_filter` need
+to change. Landmark IDs are built from the **raw detector label**, so with the
+shipped weights they read `person_0`, `trash_can_0`, `chair_0`; with the COCO
+weights the middle one is `traffic light_0`, with a space inside it — which
+bites people writing scripts that parse landmark IDs.
 
 ### 1.5 The self-test world still holds the retired props
 
@@ -265,35 +268,37 @@ Only after the chain has named a stage should any threshold be touched.
 
 ---
 
-## 3. Why `conf_threshold` is 0.35
+## 3. Why `conf_threshold` is 0.40
 
-The shipped value in `config/detector.yaml` is **0.35**, with
-`class_filter: ["person", "traffic light", "chair"]`.
+The shipped value in `config/detector.yaml` is **0.40**, with
+`class_filter: ["person", "trash_can", "chair"]`, chosen from a threshold sweep
+over 800 held-out test frames (§6.5): true targets score ≥ 0.9 almost
+everywhere, so between 0.35 and 0.50 the threshold costs under 1 % recall, and
+0.40 is where the last phantom boxes on props go without touching recall on
+heavily occluded targets.
 
-**It costs nothing.** All three real targets score far above it:
+**The history is the lesson.** With the COCO weights the value was 0.35, and it
+was doing real work:
 
-| target | measured confidence |
+| target (COCO yolo26n) | measured confidence |
 |---|---|
 | person | p50 ~0.90 |
 | chair | p50 0.87 |
 | trash can | 0.31–0.65 |
 
-**What it buys is protection from ghosts.** Dropping the threshold to **0.30**
-was enough for yolo26n to call something **0.36 m from the robot** a
-`traffic light` and plant a phantom trash-can landmark right next to the
-person. That is not a cosmetic problem: `go to trash can` then drives to a
-piece of hallucinated furniture, and — because the phantom is next to the
+Dropping it to **0.30** was enough for yolo26n to call something **0.36 m from
+the robot** a `traffic light` and plant a phantom trash-can landmark right next
+to the person. That is not a cosmetic problem: `go to trash can` then drives to
+a piece of hallucinated furniture, and — because the phantom is next to the
 person — the failure looks like a *navigation* bug rather than a detector one.
-
-The threshold used to be **0.12**. That value existed for exactly one reason:
-to scrape `table_marble` in as a `bench` (§1.1). With that target retired, the
-threshold no longer has to be low, and it is not.
+Before that it was **0.12**, which existed for exactly one reason: to scrape
+`table_marble` in as a `bench` (§1.1).
 
 The trade-off in both directions:
 
-- **Too high** → the chair, weakest of the three head-on, never appears.
+- **Too high** → recall on partially visible targets drops first (§6.5 table).
 - **Too low** → ghost landmarks, as above.
-- Start from the shipped 0.35.
+- Start from the shipped 0.40.
 
 You may tune `conf_threshold` in `config/detector.yaml` while developing, but
 the acceptance test runs with the shipped config.
@@ -408,15 +413,19 @@ behaves predictably while `go to person 3` depends on exploration order. Use
 mapping from ID to map coordinates in any given run.
 
 Combined with §1.4, the IDs you will actually see in the two shipped worlds are
-`person_0 … person_4` (default world), and `person_0`, `traffic light_0`,
-`chair_0` (the `warehouse_models` world) — with a space inside
-`traffic light_0`.
+`person_0 … person_4` (default world), and `person_0`, `trash_can_0`,
+`chair_0` (the `warehouse_models` world). With the COCO weights the middle one
+is `traffic light_0`, with a space inside.
 
 ---
 
 ## 6. Measured results, and how they were measured
 
 ### 6.1 Full-stack acceptance run (`world:=warehouse_models`)
+
+The reference run below was measured with the COCO `yolo26n` weights (2026-08);
+the fine-tuned weights that ship now were re-measured on 2026-09-03 — see the
+end of this section.
 
 Landmark position error, against Gazebo ground truth:
 
@@ -439,6 +448,41 @@ largest landmark error (0.20 m) and the largest final distance (0.92 m).
 Landmark error propagates almost directly into approach error, which is the
 whole reason the criterion is stated in metres from the *real object* rather
 than as a Nav2 status.
+
+**Re-measured with the fine-tuned weights (2026-09-03).** Six runs of
+`./scripts/acceptance_run.sh` back to back on the same machine, plus three of
+`--world warehouse_models_person`. Times are from the moment the driver starts
+waiting for landmarks (exploration start):
+
+| run | verdict | first landmark | all three | landmark error person / trash can / chair | final distance |
+|---|---|---|---|---|---|
+| 1 | PASS | 5.4 s | 92 s | 0.08 / 0.16 / 0.33 m | 0.81 / 0.85 / 0.89 m |
+| 5 | PASS | 27.3 s | 126 s | 0.05 / 0.13 / 0.30 m | 0.77 / 0.83 / 1.01 m |
+| 6 | PASS | 24.4 s | 122 s | 0.06 / 0.15 / 0.31 m | 0.81 / 0.84 / 1.04 m |
+| 2 | FAIL | 61.0 s | — | — / 0.11 / 0.22 m | the person was never promoted (see below); trash-can goal aborted by Nav2 |
+| 3 | FAIL | — | — | — | TF `map→base_link` never became available; exploration sent no goal |
+| 4 | — | — | — | — | Nav2 missed the driver's 180 s start-up deadline; nothing scored |
+
+Across all nine runs: **no ghost landmark and no label swap**, landmark errors
+0.05–0.33 m, and the three targets confirmed in 84–126 s where the run got
+that far (the COCO-era series took 112 s to the first landmark and 565 s to
+all three). The chair, which the COCO weights only recognised from favourable
+angles, is confirmed as `chair_0` at its shipped yaw of −0.9 in every run that
+reached it. In the five-figure world the person landmarks came in at 2–44 s
+with errors of 0.05–0.13 m; its verdicts are structurally FAIL because one of
+the three commands always lands on the figure at the map origin, which §5.1
+explains this stack cannot navigate to.
+
+The two scored failures are not detection failures, and are worth knowing
+about: in run 2 the short-term memory logged 1360 `person` observations at
+confidence 0.99, but `semantic_map_memory_node` never promoted a candidate —
+its range, TF and occupancy-island gates all `continue` silently, so the log
+cannot say which one rejected them. Run 3 was a bring-up race in SLAM/TF. The
+cross-class observations the mutex blocks in every run (13–83 per run) are
+localizer geometry, not detector confusion: a box clipped at the frame edge
+has its centre bearing pulled inward, and the LiDAR window at that bearing
+returns the neighbouring object's range. The detector itself produced one
+wrong-class box in 1553 on the held-out test frames (§6.5).
 
 ### 6.1.1 Where the 1.2 m acceptance bar comes from
 
@@ -525,18 +569,103 @@ the status topic.
 
 ### 6.4 Detector cost
 
-| model | inference time |
-|---|---|
-| `yolo26n` at `imgsz` 640, CPU | **36.9 ms/frame** |
-| `yolov8n` at `imgsz` 640, CPU (for comparison) | 36.1 ms/frame |
+Measured on the course machine's CPU (i7-12700H, torch 2.5.1+cpu, ultralytics
+8.4.31, 14 threads) over the same 200 640×480 Gazebo frames, one frame at a
+time as the node runs them — `scripts/bench_detector_cpu.py`:
 
-The two are within a millisecond of each other on CPU, so the newer weights
-cost effectively nothing. This is why CPU inference is sufficient for the whole
-course and a GPU is optional.
+| weights | conf | median ms/frame | p95 ms/frame |
+|---|---|---|---|
+| `tb3det_yolo26n.pt` (shipped, fine-tuned) | 0.40 | **31.8** | 33.1 |
+| `yolo26n.pt` (COCO) | 0.35 | 32.4 | 39.9 |
+
+Same architecture, same cost. A repeat of the fine-tuned row at the end of the
+same session read 39.0 / 42.9 ms with another simulation running on the machine,
+which is the spread to expect between an idle and a loaded laptop; either way a
+30 Hz camera is served from the CPU with room to spare. This is why CPU
+inference is sufficient for the whole course and a GPU is optional. (The
+previous entry here — 36.9 ms for `yolo26n`, 36.1 for `yolov8n` — was measured
+on 2026-08-27 with the older benchmark.)
 
 Pinned dependency: **ultralytics 8.4.31** (yolo26n needs >= 8.4.x, and the
-course is validated on that exact version). Weights: `yolo26n.pt`, **5.54 MB**,
-git-ignored — downloaded, never committed.
+course is validated on that exact version). Weights: `tb3det_yolo26n.pt`,
+**5.4 MB**, committed — the one `*.pt` exempted from the ignore rule.
+
+### 6.5 How the detector was trained
+
+The shipped weights, `tb3_detector/models/tb3det_yolo26n.pt`, are `yolo26n`
+fine-tuned on synthetic data from this very simulation. Everything below is
+reproducible from the companion repository `tb3-detector-finetune`.
+
+**Data.** 9600 frames from the waffle_pi's own `picam` sensor, 640×480, in two
+rooms: the 4×6 m `warehouse_models` room (one of each target) and a 6×6 m room
+with 2–5 `person` figures per arrangement (multi-person frames are the point of
+that room: 68 % of its frames hold two or more people). 240 object arrangements
+× 40 robot poses; 10 % of frames are deliberate negatives; 1–3 unlabelled
+distractor props (bookshelf, sofa, fridge, mailbox, stop sign, …) per
+arrangement so the detector learns what is *not* a target; four colour variants
+of the person figure. **18 091 boxes**: person 11 367, trash_can 3354, chair 3370.
+
+**Labels come from Gazebo ground truth, not from another detector.** Every
+object's measured pose and the camera pose are read from `/gazebo/link_states`,
+the full meshes are rasterised through the camera intrinsics into a z-buffer,
+and a target's box is the extent of the pixels where it is actually the nearest
+surface (a *modal* box). A target is labelled only if ≥ 400 of its pixels are
+visible. This was checked against COCO yolo26n on the person class before any
+training: median IoU 0.95 between the projected boxes and COCO's detections,
+sub-pixel centre offset — so the labels are right, and the fine-tuned model is
+not learning a systematic bias.
+
+**Split by arrangement, not by frame.** Frames within one arrangement share
+backgrounds and object poses; a per-frame random split would put near-duplicates
+on both sides and inflate every number below. 200/20/20 arrangements →
+8000/800/800 frames, plus a 400-frame test slice of the multi-person room alone.
+
+**Training** (run `R2`, on a desktop GPU): ultralytics `yolo26n.pt` (COCO
+pretrained) → 3 classes, 150 epochs, batch 96, imgsz 640, SGD lr0 0.01, mosaic
+0.5, reduced colour jitter (hsv_s 0.35, hsv_v 0.2) so the trash can's colour
+stays informative, scale 0.25, translate 0.05, fliplr 0.5, patience 30. Early
+stopping picked the best epoch.
+
+**Results, measured on this machine's CPU with the course environment
+(ultralytics 8.4.31), on the held-out test arrangements:**
+
+| split | mAP50 | mAP50-95 | precision | recall |
+|---|---|---|---|---|
+| test (800 frames, both rooms) | 0.995 | **0.983** | 0.994 | 0.985 |
+| test_B (400 frames, multi-person room) | 0.994 | 0.973 | 0.997 | 0.983 |
+
+Per class on `test`, AP50-95: person 0.982, trash_can 0.991, chair 0.977.
+
+**Why `conf_threshold` is 0.40.** Sweep over the 800 test frames at IoU 0.5:
+
+| conf | precision | recall | false positives / frame | recall, targets with < 50 % of pixels visible |
+|---|---|---|---|---|
+| 0.30 | 0.974 | 0.988 | 0.051 | 47/60 |
+| 0.40 | 0.981 | 0.985 | 0.037 | 45/60 |
+| 0.50 | 0.988 | 0.979 | 0.024 | 43/60 |
+
+True targets score ≥ 0.9 almost everywhere, so the threshold only moves the
+tails: 0.40 keeps 98.5 % recall (and three quarters of the *heavily occluded*
+targets, which COCO weights essentially never found) while halving the phantom
+boxes of 0.25. The stack's landmark promotion (`min_observations`) absorbs the
+remaining 0.04 false boxes per frame with a wide margin.
+
+**Against the COCO weights it replaced,** on the same test frames: COCO
+yolo26n produced no `person` box at all in a third of the single-person frames
+(the camera sits 0.10 m off the floor, so most views are legs and torso, which
+COCO was never trained on) and missed nearly every person standing behind
+another; it called the trash can a `traffic light` (p50 confidence 0.45) and
+recognised the chair only from favourable angles (p50 0.52). The fine-tuned
+model reports all three as their own class with p50 ≥ 0.9. CPU cost is
+unchanged — same architecture — see §6.4.
+
+**Repeating the comparison yourself.** Download the COCO weights (README →
+Installation, step 3), point `model_path` in `detector.yaml` at `yolo26n.pt`,
+set `conf_threshold: 0.35` and `class_filter: ["person", "traffic light",
+"chair"]`, restart T5 and run `./scripts/acceptance_run.sh`. The landmark ids
+then read `traffic light_0`, the first landmark takes minutes rather than
+seconds to confirm, and `semantic_runtime_debug_node` shows the chair/trash-can
+label swap that motivated `chair_min_observations: 12`.
 
 ---
 
@@ -653,9 +782,10 @@ inside them. Match on ASCII-safe substrings — `target selected:`, the
   mismatch. `/detector_node/detections` and `/detector_node/debug_image` are
   RELIABLE in the other direction — see the QoS column in INSTRUCTIONS. This
   matters most for the §9.1 bonus, which subscribes to the camera directly.
-- **`class_filter` entries are COCO detector labels**, and multi-word COCO
-  labels contain a space (`"traffic light"`, not `"trash_can"`). See §1.4 for
-  where that space resurfaces in landmark IDs.
+- **`class_filter` entries are detector labels as the weights emit them**
+  (`"trash_can"` with the shipped weights). With the COCO weights they are COCO
+  labels, and multi-word COCO labels contain a space (`"traffic light"`). See
+  §1.4 for where that space resurfaces in landmark IDs.
 
 ### 7.7 Why the launches are split six ways
 
@@ -735,6 +865,14 @@ kill by recorded PID.
 Python shadowing `/usr/bin/python3` on `PATH` breaks colcon and, in particular,
 `rosidl` message generation, in ways whose error messages point at the message
 package rather than at the interpreter. It costs an afternoon the first time.
+
+**`model_path` in `detector.yaml` is overridden by `detector.launch.py`.**
+The launch file resolves `model_path` to an absolute install path and passes it
+after the YAML, so the YAML value is only used when the node is run without the
+launch file. Change the weights in *both* places (the launch argument default
+and the YAML), or the detector silently keeps loading the old file while the
+config claims otherwise. `scripts/acceptance_run.py::check_weights()` reads the
+YAML, so it would not catch the mismatch either.
 
 **`Managed nodes are active` is ambiguous.** When waiting for Nav2 to come up
 in T2, the readiness signal is

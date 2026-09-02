@@ -11,11 +11,12 @@ Everything else in the workspace is provided and working.
 
 ## Steps
 
-### Step 1 — Install the dependencies and the weights
+### Step 1 — Install the dependencies
 
-Follow **[README.md](README.md) → Installation**, steps 1–3: apt packages,
-`ultralytics` + `torch`, and the `yolo26n.pt` download. Then rebuild the
-detector package so the weights reach `install/`:
+Follow **[README.md](README.md) → Installation**, steps 1–2: apt packages and
+`ultralytics` + `torch`. The detector weights (`tb3det_yolo26n.pt`) are
+provided with the repository — nothing to download. Rebuild the detector
+package once so the weights reach `install/`:
 
 ```bash
 cd ~/turtlebot3-gazebo-navigation-course
@@ -128,11 +129,15 @@ nothing and says nothing (NOTES.md §7.6).
 | Task-level `semantic_name` | `detector_label` your `infer()` must report |
 |---|---|
 | `person` | `"person"` |
-| `trash_can` | `"traffic light"` |
+| `trash_can` | `"trash_can"` |
 | `chair` | `"chair"` |
 
-Report the raw COCO label; never rename it. `class_filter` entries are detector
-labels (`"traffic light"`, not `"trash_can"`); multi-word labels contain a space.
+Report the label exactly as the network emits it (`result.names[...]`); never
+rename it in `infer()`. With the provided fine-tuned weights the two columns
+happen to agree; with the optional COCO weights (NOTES.md) they do not — the
+trash can comes out as `"traffic light"` — and the mapping in
+`semantic_targets.yaml` is what keeps the rest of the stack working either way.
+`class_filter` entries are detector labels, not semantic names.
 
 ## Acceptance criteria
 

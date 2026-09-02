@@ -29,7 +29,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             "model_path",
-            default_value=PathJoinSubstitution([pkg_share, "models", "yolo26n.pt"]),
+            default_value=PathJoinSubstitution([pkg_share, "models", "tb3det_yolo26n.pt"]),
             description="Absolute path to YOLO26 .pt weights.",
         ),
         DeclareLaunchArgument(

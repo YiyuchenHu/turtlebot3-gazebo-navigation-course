@@ -40,8 +40,8 @@ TIMEOUT_SEC = 5.0
 TEST_CASES: list[dict] = [
     # Default (no index) — matches whichever instance is nearest.
     {"command": "go to the person",      "expect_success": True,  "expect_name": "person"},
-    # "trash can" resolves through _PHRASE_ALIASES; the detector_label behind it
-    # is "traffic light", which is exactly what this case is here to catch.
+    # "trash can" resolves through _PHRASE_ALIASES to the registry entry whose
+    # detector_label is read from semantic_targets.yaml, never hard-coded.
     {"command": "go to the trash can",   "expect_success": True,  "expect_name": "trash_can"},
     {"command": "go to the chair",       "expect_success": True,  "expect_name": "chair"},
     # Retired targets must now be rejected, not resolved.

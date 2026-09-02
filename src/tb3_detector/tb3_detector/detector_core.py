@@ -28,7 +28,7 @@ OUTPUT CONTRACT — do not change key names; the provided localizer and the
 node wrapper (detector_node.py) rely on them:
 
     {
-        "label":      str,          # COCO class name, e.g. "person", "chair"
+        "label":      str,          # detector class name: "person", "trash_can", "chair"
         "conf":       float,        # confidence, 0.0 – 1.0
         "bbox_xyxy":  [x1, y1, x2, y2],   # pixels (float), see convention below
         "track_id":   int | None,   # None unless you enable tracking
@@ -84,7 +84,7 @@ class DetectorCore:
 
     Usage::
 
-        core = DetectorCore(model_path="models/yolo26n.pt", conf_threshold=0.35)
+        core = DetectorCore(model_path="models/tb3det_yolo26n.pt", conf_threshold=0.40)
         core.load()                          # loads weights once at startup
         detections = core.infer(bgr_image)   # list of dicts (see module docstring)
 
@@ -94,16 +94,15 @@ class DetectorCore:
         Absolute or relative path to the YOLO26 .pt weights file.
     conf_threshold : float
         Minimum confidence to include a detection (0.0 – 1.0).
-        The shipped config uses 0.35, set from a full-stack run: below it
-        yolo26n reports a phantom "traffic light" on clutter near the person
-        and plants a false trash-can landmark. Tune in config/detector.yaml,
-        not here.
+        The shipped config uses 0.40 for the fine-tuned tb3det_yolo26n weights
+        (threshold sweep in config/detector.yaml). Tune it there, not here.
     class_filter : list[str] | None
         If given, only return detections whose label is in this list.
         None means return all detected classes.
-        IMPORTANT: entries are COCO *detector labels* ("person",
-        "traffic light", "chair"), NOT the task-level semantic names — see
-        the mapping note below.
+        IMPORTANT: entries are *detector labels* as the weights emit them
+        ("person", "trash_can", "chair" for the shipped weights; the COCO
+        weights say "traffic light" for the trash can), NOT the task-level
+        semantic names — see the mapping note below.
     device : str
         Torch device string, e.g. "cpu", "cuda:0".
     enable_tracking : bool
@@ -111,24 +110,23 @@ class DetectorCore:
         Optional — the course task only requires plain per-frame detection.
 
     ------------------------------------------------------------------------
-    COCO label → task label mapping (important!)
+    Detector label → task label mapping (important!)
     ------------------------------------------------------------------------
-    YOLO26's COCO-80 class names do not always match what this project calls
-    an object. The mapping used by the rest of the stack lives in
+    The mapping used by the rest of the stack lives in
     src/tb3_bringup/config/semantic_targets.yaml:
 
-        task name    COCO detector_label      Gazebo model
-        ---------    -------------------      ------------
-        person   ←   "person"                 person_standing
-        trash_can ←  "traffic light"          first_2015_trash_can
-        chair    ←   "chair"                  VisitorChair
+        task name    detector_label     Gazebo model
+        ---------    --------------     ------------
+        person   ←   "person"           person_standing
+        trash_can ←  "trash_can"        first_2015_trash_can
+        chair    ←   "chair"            VisitorChair
 
-    The trash can is the reason this mapping exists: COCO has no trash-can
-    class, and yolo26n consistently calls that model a *traffic light*. Do
-    not "fix" it by renaming — the whole point is that detector_label and
-    semantic_name are separate fields. DetectorCore simply reports raw COCO
-    labels; the provided downstream nodes translate them using
-    semantic_targets.yaml.
+    With the shipped fine-tuned weights the two columns agree. They did not
+    with the COCO weights (no trash-can class; yolo26n called that model a
+    *traffic light*), and that is why detector_label and semantic_name are
+    separate fields: DetectorCore reports whatever the network says, and the
+    provided downstream nodes translate it using semantic_targets.yaml. Do not
+    rename labels inside infer().
     """
 
     def __init__(
@@ -155,13 +153,11 @@ class DetectorCore:
         Raises RuntimeError if ultralytics is missing, FileNotFoundError if
         the weights file is absent — both with a message the grader can read.
 
-        Weights are git-ignored on purpose; download them with:
-
-            wget -O src/tb3_detector/models/yolo26n.pt \
-              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
-
-        then rebuild (colcon build --symlink-install --packages-select tb3_detector) so the file
-        is copied into the install tree, or pass an absolute model_path.
+        The fine-tuned weights (models/tb3det_yolo26n.pt) ship with the repo;
+        after a fresh checkout run colcon build --symlink-install
+        --packages-select tb3_detector so the file is copied into the install
+        tree, or pass an absolute model_path. The COCO comparison weights are
+        a local download (see NOTES.md).
         """
         if not _ULTRALYTICS_AVAILABLE:
             raise RuntimeError(
