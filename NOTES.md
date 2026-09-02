@@ -738,6 +738,19 @@ right tool when the fault is statistical rather than binary — "the chair
 appears sometimes" is a question about rates, and eyeballing a topic echo will
 not answer it.
 
+The last stage has its own counters, always on. `semantic_map_memory_node`
+counts every observation it rejects — `range`, `tf`, `out_of_grid`,
+`no_island` (the four gates that used to `continue` silently), `geometry`,
+`mutex` — and every one it accepts (`merge_landmark`, `merge_candidate`,
+`new_candidate`, `promote`), per class, and logs one `[gate_summary]` block
+every `gate_summary_interval_sec` (10 s) whenever a counter changed, plus a
+final block at shutdown. Each row carries the key numbers of its most recent
+event (how far past the range limit, what the island window contained, which
+entry the mutex hit), candidates are listed with `n=<have>/<need>`, and a
+candidate that times out is logged with how many observations short it was.
+When a target is "seen constantly but never becomes a landmark", this block
+names the gate. The counters are never consulted by the promotion logic.
+
 ### 7.5 Coordinator status strings
 
 `/coordinator_node/status` (`std_msgs/String`) is formatted exactly as

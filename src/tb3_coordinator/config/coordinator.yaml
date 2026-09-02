@@ -113,6 +113,17 @@ semantic_map_memory_node:
     trash_can_min_observations: 12
     wall_boundary_margin_m:   0.20
 
+    # ── Gate statistics (observability only) ──────────────
+    # Every rejection gate in the observation pipeline (range, TF, grid
+    # bounds, no occupancy island, geometry, mutex) and every success path
+    # (landmark merge, candidate merge, new candidate, promotion) is counted
+    # per class. One `[gate_summary]` block is logged every this many
+    # seconds when a counter changed, plus a final block at shutdown, so a
+    # log can say which gate held a target back and by how much. The
+    # counters are never consulted by the promotion logic. 0 disables the
+    # periodic block (the final one is still printed).
+    gate_summary_interval_sec: 10.0
+
     # ── Visualization ──────────────────────────────────────
     sphere_radius:            0.18
     text_offset_z:            0.45

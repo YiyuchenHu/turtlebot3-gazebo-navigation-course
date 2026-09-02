@@ -12,13 +12,21 @@ Pipeline per observation:
   6. Match refined point against existing landmarks/candidates (same class + distance)
   7. Candidates promoted to persistent landmarks after min_observations
   8. Publish all persistent landmarks as MarkerArray
+
+Every rejection in that pipeline (range, TF, grid bounds, no island,
+geometry, mutex) and every success (landmark merge, candidate merge, new
+candidate, promotion) is counted per class, together with the key numbers
+of the most recent event, and printed as one `[gate_summary]` block every
+`gate_summary_interval_sec` seconds when something changed (plus a final
+one at shutdown). Nothing is decided from those counters; they exist so a
+log can say which gate held a target back and by how much.
 """
 
 from __future__ import annotations
 
 import math
 import time as _time
-from collections import deque
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Optional
 
@@ -83,8 +91,15 @@ def find_nearest_valid_island(
     grid, width, height, cx, cy, search_radius,
     origin_x, origin_y, resolution,
     occupied_thresh=50, min_island_pixels=2, wall_margin_cells=4,
+    diag=None,
 ):
-    """BFS flood-fill for obstacle islands, rejecting wall-like islands."""
+    """BFS flood-fill for obstacle islands, rejecting wall-like islands.
+
+    `diag`, if a dict, receives counts of what the window held: occupied
+    cells, islands found, and how many were dropped as too small, touching
+    the border, or inside the wall margin. Pure observation; the return
+    value does not depend on it.
+    """
     x_lo = max(0, cx - search_radius)
     x_hi = min(width, cx + search_radius + 1)
     y_lo = max(0, cy - search_radius)
@@ -92,6 +107,10 @@ def find_nearest_valid_island(
 
     visited = set()
     islands = []
+    n_occupied = 0
+    n_small = 0
+    n_border = 0
+    n_wall = 0
 
     for iy in range(y_lo, y_hi):
         for ix in range(x_lo, x_hi):
@@ -117,17 +136,29 @@ def find_nearest_valid_island(
                         visited.add((nx, ny))
                         if grid[ny * width + nx] >= occupied_thresh:
                             queue.append((nx, ny))
+            n_occupied += len(island)
             if len(island) < min_island_pixels:
+                n_small += 1
                 continue
             if touches_border:
+                n_border += 1
                 continue
             n = len(island)
             avg_gx = sum(p[0] for p in island) / n
             avg_gy = sum(p[1] for p in island) / n
             if (avg_gx < wall_margin_cells or avg_gx >= width - wall_margin_cells or
                     avg_gy < wall_margin_cells or avg_gy >= height - wall_margin_cells):
+                n_wall += 1
                 continue
             islands.append((avg_gx, avg_gy))
+
+    if diag is not None:
+        diag["occupied"] = n_occupied
+        diag["islands"] = n_small + n_border + n_wall + len(islands)
+        diag["small"] = n_small
+        diag["border"] = n_border
+        diag["wall"] = n_wall
+        diag["valid"] = len(islands)
 
     if not islands:
         return None
@@ -324,6 +355,13 @@ def check_geometry_consistency(
 
 class SemanticMapMemoryNode(Node):
 
+    # Rows of the gate summary, in pipeline order. The first six are the
+    # rejection gates of _obs_cb (the four that used to be silent, plus the
+    # two that already log per event); the last four are the success paths.
+    GATE_ROWS = ("range", "tf", "out_of_grid", "no_island", "geometry", "mutex")
+    PASS_ROWS = ("merge_landmark", "merge_candidate", "new_candidate", "promote")
+    STAT_ROWS = GATE_ROWS + PASS_ROWS
+
     def __init__(self):
         super().__init__("semantic_map_memory_node")
 
@@ -360,6 +398,11 @@ class SemanticMapMemoryNode(Node):
         self.declare_parameter("cross_class_mutex_enabled", True)
         self.declare_parameter("cross_class_mutex_distance_m", 0.6)
         self.declare_parameter("mutex_min_observation_count", 3)
+        # Observability only: how often the per-gate counters are printed.
+        # A block is printed only when a counter changed since the last one,
+        # so an idle node stays quiet. 0 disables the periodic block (the
+        # final one at shutdown is still printed).
+        self.declare_parameter("gate_summary_interval_sec", 10.0)
 
         in_topic        = self.get_parameter("input_topic").value
         out_topic       = self.get_parameter("output_topic").value
@@ -427,8 +470,26 @@ class SemanticMapMemoryNode(Node):
         self._landmarks = {}
         self._next_seq = {}
 
+        # ── Gate statistics (observation only, never consulted) ─────────
+        # One counter per (gate, class) for every `continue` in _obs_cb and
+        # every success path, plus the key numbers of the last event per
+        # (gate, class) so the summary can say by how much a gate failed.
+        self._stat_msgs = 0            # Detection3DArray messages received
+        self._stat_msgs_no_map = 0     # ... dropped because /map not yet seen
+        self._stat_in = defaultdict(int)          # observations per class
+        self._stat = {name: defaultdict(int) for name in self.STAT_ROWS}
+        self._stat_last = {name: {} for name in self.STAT_ROWS}
+        self._stat_expired = defaultdict(int)     # candidates timed out
+        self._stat_expired_max_n = defaultdict(int)
+        self._stat_expired_last = {}
+        self._stat_t0 = _time.time()
+        self._stat_printed = None      # snapshot at the last printed block
+
         self.create_timer(1.0 / max(pub_rate, 0.1), self._publish_markers)
         self.create_timer(5.0, self._cleanup_candidates)
+        summary_dt = float(self.get_parameter("gate_summary_interval_sec").value)
+        if summary_dt > 0.0:
+            self.create_timer(summary_dt, self._log_gate_summary)
 
         self.get_logger().info(
             "SemanticMapMemoryNode ready  merge=%.2fm  cand=%.2fm  min_obs=%d  "
@@ -445,7 +506,9 @@ class SemanticMapMemoryNode(Node):
         self._map_data = np.array(msg.data, dtype=np.int8)
 
     def _obs_cb(self, msg):
+        self._stat_msgs += 1
         if self._map_data is None:
+            self._stat_msgs_no_map += 1
             return
 
         wall_margin_cells = max(1, int(self._wall_margin_m / self._map_res))
@@ -455,6 +518,8 @@ class SemanticMapMemoryNode(Node):
                 continue
             label = det.results[0].hypothesis.class_id
             src = det.header.frame_id or msg.header.frame_id or "base_link"
+            obs_id = det.id or "-"
+            self._stat_in[label] += 1
 
             raw_x = det.bbox.center.position.x
             raw_y = det.bbox.center.position.y
@@ -462,6 +527,10 @@ class SemanticMapMemoryNode(Node):
 
             class_max = self._class_max_range.get(label, self._max_obs_range)
             if obs_range > class_max:
+                self._note("range", label,
+                           "r=%.2f > max %.2f (+%.2f) raw=(%.2f,%.2f) id=%s"
+                           % (obs_range, class_max, obs_range - class_max,
+                              raw_x, raw_y, obs_id))
                 continue
 
             pt_in = PointStamped()
@@ -474,13 +543,21 @@ class SemanticMapMemoryNode(Node):
                 pt_out = self._tf_buffer.transform(
                     pt_in, self._frame,
                     timeout=Duration(seconds=self._tf_tout))
-            except Exception:
+            except Exception as exc:  # noqa: BLE001 - same catch as before
+                self._note("tf", label,
+                           "%s->%s %s: %s id=%s"
+                           % (src, self._frame, type(exc).__name__,
+                              str(exc).replace("\n", " ")[:90], obs_id))
                 continue
 
             mx, my = pt_out.point.x, pt_out.point.y
             gx, gy = world_to_grid(mx, my, self._map_ox, self._map_oy, self._map_res)
 
             if not (0 <= gx < self._map_width and 0 <= gy < self._map_height):
+                self._note("out_of_grid", label,
+                           "map=(%.2f,%.2f) cell=(%d,%d) grid=%dx%d id=%s"
+                           % (mx, my, gx, gy, self._map_width,
+                              self._map_height, obs_id))
                 continue
 
             if label == "bench":
@@ -494,15 +571,30 @@ class SemanticMapMemoryNode(Node):
                     cluster_radius_cells=self._bench_cluster_r,
                     logger=self.get_logger())
             else:
+                island_diag = {}
                 refined = find_nearest_valid_island(
                     self._map_data, self._map_width, self._map_height,
                     gx, gy, self._search_r,
                     self._map_ox, self._map_oy, self._map_res,
                     occupied_thresh=self._occ_thresh,
                     min_island_pixels=self._min_island,
-                    wall_margin_cells=wall_margin_cells)
+                    wall_margin_cells=wall_margin_cells,
+                    diag=island_diag)
 
             if refined is None:
+                if label == "bench":
+                    why = "bench cluster search found no island"
+                else:
+                    why = ("window r=%d cells: occ=%d islands=%d (small %d, "
+                           "border %d, wall_margin %d)"
+                           % (self._search_r, island_diag.get("occupied", 0),
+                              island_diag.get("islands", 0),
+                              island_diag.get("small", 0),
+                              island_diag.get("border", 0),
+                              island_diag.get("wall", 0)))
+                self._note("no_island", label,
+                           "map=(%.2f,%.2f) r=%.2f %s id=%s"
+                           % (mx, my, obs_range, why, obs_id))
                 continue
 
             rx, ry = refined
@@ -521,29 +613,47 @@ class SemanticMapMemoryNode(Node):
                     bench_min_total_px=self._bench_min_px)
                 if not compat:
                     self.get_logger().info("[reject] %s" % reason)
+                    self._note("geometry", label, reason)
                     continue
                 self.get_logger().debug("[geometry] %s" % reason)
 
             blocked, mutex_reason = self._check_cross_class_mutex(label, rx, ry)
             if blocked:
                 self.get_logger().info("[mutex] %s" % mutex_reason)
+                self._note("mutex", label, "%s id=%s" % (mutex_reason, obs_id))
                 continue
 
             now = _time.time()
 
             matched_lm = self._find_landmark(label, rx, ry)
             if matched_lm is not None:
+                d_lm = math.hypot(matched_lm.x - rx, matched_lm.y - ry)
                 self._update_landmark(matched_lm, rx, ry, now)
+                self._note("merge_landmark", label,
+                           "%s n=%d d=%.2f id=%s"
+                           % (matched_lm.landmark_id,
+                              matched_lm.observation_count, d_lm, obs_id))
                 continue
 
             matched_cand = self._find_candidate(label, rx, ry)
             if matched_cand is not None:
+                d_c = math.hypot(matched_cand.x - rx, matched_cand.y - ry)
                 self._update_candidate(matched_cand, rx, ry, now)
                 class_min_obs = self._class_min_obs.get(label, self._min_obs)
+                self._note("merge_candidate", label,
+                           "n=%d/%d d=%.2f pos=(%.2f,%.2f) id=%s"
+                           % (matched_cand.obs_count, class_min_obs, d_c,
+                              matched_cand.x, matched_cand.y, obs_id))
                 if matched_cand.obs_count >= class_min_obs:
+                    self._note("promote", label,
+                               "n=%d pos=(%.2f,%.2f)"
+                               % (matched_cand.obs_count,
+                                  matched_cand.x, matched_cand.y))
                     self._promote(matched_cand)
                 continue
 
+            self._note("new_candidate", label,
+                       "pos=(%.2f,%.2f) r=%.2f id=%s" % (rx, ry, obs_range, obs_id))
             self._candidates.append(Candidate(
                 semantic_class=label, x=rx, y=ry, obs_count=1, last_seen=now))
 
@@ -663,11 +773,107 @@ class SemanticMapMemoryNode(Node):
     def _cleanup_candidates(self):
         now = _time.time()
         before = len(self._candidates)
+        expired = [
+            c for c in self._candidates if (now - c.last_seen) >= self._cand_tout]
         self._candidates = [
             c for c in self._candidates if (now - c.last_seen) < self._cand_tout]
         removed = before - len(self._candidates)
         if removed > 0:
             self.get_logger().info("[cleanup] Removed %d stale candidates" % removed)
+        # Observation only: which candidate died, how far it was from its
+        # promotion threshold, and where it sat. A candidate that repeatedly
+        # expires one or two observations short is the signature this
+        # summary exists to expose.
+        for c in expired:
+            need = self._class_min_obs.get(c.semantic_class, self._min_obs)
+            self._stat_expired[c.semantic_class] += 1
+            self._stat_expired_max_n[c.semantic_class] = max(
+                self._stat_expired_max_n[c.semantic_class], c.obs_count)
+            self._stat_expired_last[c.semantic_class] = (
+                "n=%d/%d (short %d) age=%.0fs pos=(%.2f,%.2f)"
+                % (c.obs_count, need, max(0, need - c.obs_count),
+                   now - c.last_seen, c.x, c.y))
+            self.get_logger().info(
+                "[cleanup] expired %s candidate %s"
+                % (c.semantic_class, self._stat_expired_last[c.semantic_class]))
+
+    # ── Gate statistics ──────────────────────────────────────────────────
+
+    def _note(self, row, label, detail):
+        """Count one event on `row` for `label` and remember its detail."""
+        self._stat[row][label] += 1
+        self._stat_last[row][label] = detail
+
+    def _stat_snapshot(self):
+        return (self._stat_msgs, self._stat_msgs_no_map,
+                tuple(sorted(self._stat_in.items())),
+                tuple((row, tuple(sorted(self._stat[row].items())))
+                      for row in self.STAT_ROWS),
+                tuple(sorted(self._stat_expired.items())))
+
+    def _format_gate_summary(self, tag):
+        labels = sorted(set(self._stat_in) | set(self._class_min_obs))
+        elapsed = _time.time() - self._stat_t0
+        head = ("[gate_summary%s] t=+%.0fs msgs=%d (before /map: %d)  in: %s"
+                % (tag, elapsed, self._stat_msgs, self._stat_msgs_no_map,
+                   " ".join("%s=%d" % (lb, self._stat_in.get(lb, 0))
+                            for lb in labels) or "-"))
+        lines = [head]
+        col = max(9, max((len(lb) for lb in labels), default=9))
+        lines.append("  %-15s %s  last"
+                     % ("row", " ".join("%*s" % (col, lb) for lb in labels)))
+        for row in self.STAT_ROWS:
+            counts = self._stat[row]
+            if not counts:
+                continue
+            # The `last` column shows the class with the most recent hit on
+            # this row; per-class details are in the per-event logs of the
+            # loud gates and in this row's counts for the silent ones.
+            last_lb, last_txt = next(reversed(self._stat_last[row].items()))
+            lines.append("  %-15s %s  %s: %s"
+                         % (row,
+                            " ".join("%*d" % (col, counts.get(lb, 0))
+                                     for lb in labels),
+                            last_lb, last_txt))
+        if self._stat_expired:
+            lines.append("  %-15s %s"
+                         % ("expired",
+                            " | ".join(
+                                "%s x%d (max n=%d/%d) last %s"
+                                % (lb, n, self._stat_expired_max_n[lb],
+                                   self._class_min_obs.get(lb, self._min_obs),
+                                   self._stat_expired_last.get(lb, ""))
+                                for lb, n in sorted(self._stat_expired.items()))))
+        now = _time.time()
+        if self._candidates:
+            lines.append("  candidates: " + " | ".join(
+                "%s n=%d/%d age=%.0fs (%.2f,%.2f)"
+                % (c.semantic_class, c.obs_count,
+                   self._class_min_obs.get(c.semantic_class, self._min_obs),
+                   now - c.last_seen, c.x, c.y)
+                for c in self._candidates))
+        if self._landmarks:
+            lines.append("  landmarks: " + " | ".join(
+                "%s n=%d (%.2f,%.2f)" % (lm.landmark_id, lm.observation_count,
+                                          lm.x, lm.y)
+                for lm in self._landmarks.values()))
+        return "\n".join(lines)
+
+    def _log_gate_summary(self, tag="", force=False):
+        snap = self._stat_snapshot()
+        if not force and snap == self._stat_printed:
+            return
+        self._stat_printed = snap
+        self.get_logger().info(self._format_gate_summary(tag))
+
+    def destroy_node(self):
+        # Final table, so a run that ended between two periodic blocks still
+        # leaves its totals in the log.
+        try:
+            self._log_gate_summary(tag=" final", force=True)
+        except Exception:  # noqa: BLE001 - shutdown must not fail on a log
+            pass
+        super().destroy_node()
 
     def _publish_markers(self):
         ma = MarkerArray()
