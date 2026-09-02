@@ -78,6 +78,10 @@ def load_target_mapping(yaml_path: str | Path) -> tuple[dict[str, str], dict[str
         FileNotFoundError: the file is missing or unreadable. The message
             names the path and the package that ships it, because the usual
             cause is a stale/absent install tree rather than a bad parameter.
+        ValueError: the file was read but its contents are not a usable
+            registry -- it is not valid YAML, it does not parse to a mapping,
+            `semantic_targets` is not a list, or an entry is not a mapping or
+            is missing `semantic_name` / `detector_label`.
     """
     path = Path(yaml_path)
     try:
@@ -91,6 +95,14 @@ def load_target_mapping(yaml_path: str | Path) -> tuple[dict[str, str], dict[str
             "install/setup.bash, or point the semantic_targets_file "
             "parameter at an existing file." % (path, exc)
         ) from exc
+    except yaml.YAMLError as exc:
+        # A tab, a bad indent or an unclosed quote raises ScannerError /
+        # ParserError, neither of which is an OSError. Without this branch the
+        # node died on a raw PyYAML traceback that never named the file.
+        raise ValueError(
+            "%s is not valid YAML (%s). Fix the file, or point the "
+            "semantic_targets_file parameter at a good copy." % (path, exc)
+        ) from exc
 
     if not isinstance(data, dict):
         raise ValueError(
@@ -99,13 +111,31 @@ def load_target_mapping(yaml_path: str | Path) -> tuple[dict[str, str], dict[str
         )
 
     targets = data.get("semantic_targets", [])
+    if not isinstance(targets, list):
+        raise ValueError(
+            "%s: `semantic_targets` must be a list, got %s."
+            % (path, type(targets).__name__)
+        )
     sem2det: dict[str, str] = {}
     det2sem: dict[str, str] = {}
-    for entry in targets:
+    for i, entry in enumerate(targets):
+        # Each entry is student-editable, so a typo here must produce a message
+        # that names the offending entry rather than a bare KeyError.
+        if not isinstance(entry, dict):
+            raise ValueError(
+                "%s: semantic_targets[%d] must be a mapping, got %s."
+                % (path, i, type(entry).__name__)
+            )
         if not entry.get("enabled", True):
             continue
-        sn = entry["semantic_name"]
-        dl = entry["detector_label"]
+        try:
+            sn = entry["semantic_name"]
+            dl = entry["detector_label"]
+        except KeyError as exc:
+            raise ValueError(
+                "%s: semantic_targets[%d] is missing required key %s."
+                % (path, i, exc)
+            ) from exc
         sem2det[sn] = dl
         det2sem[dl] = sn
 

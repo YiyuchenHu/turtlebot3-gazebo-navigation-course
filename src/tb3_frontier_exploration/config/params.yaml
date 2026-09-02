@@ -20,8 +20,22 @@ frontier_detection_node:
     # Minimum number of adjacent frontier cells to form a cluster; smaller clusters are discarded.
     min_cluster_size: 3 # default is 5
 
-    # Max cost at centroid to accept a frontier (0–255). Centroids with cost > this are rejected when use_costmap_filter is true.
-    cost_threshold: 150 # default is 128
+    # Max cost at a centroid to accept a frontier. Centroids with cost > this
+    # are rejected when use_costmap_filter is true.
+    #
+    # SCALE: this is compared against /global_costmap/costmap, which is a
+    # nav_msgs/OccupancyGrid, NOT the raw 0-255 costmap. Nav2's
+    # Costmap2DPublisher translation table maps raw -> grid as:
+    #   0 (FREE) -> 0 | 1..252 -> 1..98 | 253 (INSCRIBED) -> 99
+    #   254 (LETHAL) -> 100 | 255 (NO_INFORMATION) -> -1
+    # so the only values a known cell can carry are 0..100. The old 150 was on
+    # the raw 0-255 scale and therefore sat above every reachable value: the
+    # cost test never rejected anything (only the separate unknown/out-of-bounds
+    # path did). 98 is the largest value that still rejects exactly the two
+    # states a goal can never be sent to -- 99 = inscribed (the robot's own
+    # footprint would collide) and 100 = lethal -- while accepting the whole
+    # 0..98 inflation gradient, so ordinary frontiers near a wall still pass.
+    cost_threshold: 98 # was 150 on the wrong (raw 0-255) scale
 
     # If true, reject frontier centroids whose costmap cost exceeds cost_threshold.
     use_costmap_filter: true

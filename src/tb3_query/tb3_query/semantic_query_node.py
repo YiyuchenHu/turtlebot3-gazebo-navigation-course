@@ -37,7 +37,10 @@ from std_msgs.msg import String
 from vision_msgs.msg import Detection3DArray
 from geometry_msgs.msg import Point
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import (
+    PackageNotFoundError,
+    get_package_share_directory,
+)
 
 from tb3_query.query_core import (
     MemoryObject,
@@ -65,12 +68,12 @@ class SemanticQueryNode(Node):
             raise RuntimeError("SemanticQueryResult message not found")
 
         # ── Parameters ────────────────────────────────────────────────────
-        self.declare_parameter("memory_topic", "/semantic_memory_node/objects")
+        self.declare_parameter("memory_topic", "/semantic_map_memory_node/landmark_objects")
         self.declare_parameter("command_topic", "~/command")
         self.declare_parameter("output_topic", "~/selected_target")
         self.declare_parameter("status_topic", "~/query_status")
         self.declare_parameter("semantic_targets_file", "")
-        self.declare_parameter("output_frame", "base_link")
+        self.declare_parameter("output_frame", "map")
 
         mem_topic    = self.get_parameter("memory_topic").value
         cmd_topic    = self.get_parameter("command_topic").value
@@ -84,10 +87,26 @@ class SemanticQueryNode(Node):
         # when the node is started bare (`ros2 run tb3_query ...`), and it
         # points at tb3_bringup, which is where semantic_targets.yaml ships.
         if not targets_file:
-            pkg_share = get_package_share_directory("tb3_bringup")
+            try:
+                pkg_share = get_package_share_directory("tb3_bringup")
+            except PackageNotFoundError as exc:
+                # Raised before load_target_mapping can produce its own, much
+                # friendlier message, so it needs its own handler.
+                self.get_logger().fatal(
+                    "tb3_bringup is not on the ament index (%s), so the default "
+                    "location of semantic_targets.yaml cannot be resolved. Build "
+                    "tb3_bringup and re-source install/setup.bash, or pass "
+                    "-p semantic_targets_file:=<path>." % exc
+                )
+                raise RuntimeError("tb3_bringup share directory not found") from exc
             targets_file = os.path.join(pkg_share, "config", "semantic_targets.yaml")
 
-        self._sem2det, self._det2sem = load_target_mapping(targets_file)
+        try:
+            self._sem2det, self._det2sem = load_target_mapping(targets_file)
+        except (FileNotFoundError, ValueError) as exc:
+            # Turn a startup crash into a logged fatal that names the cause.
+            self.get_logger().fatal("could not load semantic targets: %s" % exc)
+            raise RuntimeError("semantic_targets.yaml could not be loaded") from exc
         self._known_targets = set(self._sem2det.keys())
         self.get_logger().info(
             "Loaded %d semantic targets: %s"

@@ -58,8 +58,8 @@ class LocalizerNode(Node):
         # ── Parameters ────────────────────────────────────────────────────
         self.declare_parameter("camera_hfov_deg", 62.2)
         self.declare_parameter("scan_window_half", 5)
-        self.declare_parameter("min_valid_range", 0.12)
-        self.declare_parameter("max_valid_range", 8.0)
+        self.declare_parameter("min_valid_range", 1.0)
+        self.declare_parameter("max_valid_range", 3.3)
         self.declare_parameter("detections_topic", "/detector_node/detections")
         self.declare_parameter("scan_topic", "/scan")
         self.declare_parameter("image_topic", "/camera/image_raw")

@@ -32,12 +32,22 @@ except ImportError:
 
 TIMEOUT_SEC = 5.0
 
+# The three live targets come from src/tb3_bringup/config/semantic_targets.yaml
+# (person / trash_can / chair). `table` and `stop_sign` were retired when the
+# target set was cut to three, so the cases that used to assert them had
+# inverted: they demanded success from two targets the registry no longer
+# resolves, and demanded failure from `chair`, which is now a live target.
 TEST_CASES: list[dict] = [
-    # Default (no index) — matches whichever person is nearest.
+    # Default (no index) — matches whichever instance is nearest.
     {"command": "go to the person",      "expect_success": True,  "expect_name": "person"},
-    {"command": "go to the table",       "expect_success": True,  "expect_name": "table"},
-    {"command": "go to the stop sign",   "expect_success": True,  "expect_name": "stop_sign"},
-    {"command": "go to the chair",       "expect_success": False, "expect_name": ""},
+    # "trash can" resolves through _PHRASE_ALIASES; the detector_label behind it
+    # is "traffic light", which is exactly what this case is here to catch.
+    {"command": "go to the trash can",   "expect_success": True,  "expect_name": "trash_can"},
+    {"command": "go to the chair",       "expect_success": True,  "expect_name": "chair"},
+    # Retired targets must now be rejected, not resolved.
+    {"command": "go to the table",       "expect_success": False, "expect_name": ""},
+    {"command": "go to the stop sign",   "expect_success": False, "expect_name": ""},
+    # Never was a target.
     {"command": "go to the fridge",      "expect_success": False, "expect_name": ""},
 
     # Indexed lookups exercising the three accepted spellings of

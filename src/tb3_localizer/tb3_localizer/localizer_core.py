@@ -43,8 +43,8 @@ class LocalizerCore:
         self,
         camera_hfov_rad: float = 1.085595,   # ~62.2° for TurtleBot3 default camera
         scan_window_half: int = 5,            # rays on each side of central ray
-        min_valid_range: float = 0.12,        # reject returns closer than this (m)
-        max_valid_range: float = 8.0,         # reject returns beyond this (m)
+        min_valid_range: float = 1.0,         # reject returns closer than this (m)
+        max_valid_range: float = 3.3,         # reject returns beyond this (m)
     ) -> None:
         self.camera_hfov_rad = camera_hfov_rad
         self.scan_window_half = scan_window_half

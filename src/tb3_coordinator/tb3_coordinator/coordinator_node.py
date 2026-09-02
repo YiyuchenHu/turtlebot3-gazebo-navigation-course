@@ -87,7 +87,7 @@ class CoordinatorNode(Node):
         self.declare_parameter("auto_resume_exploration", True)
         self.declare_parameter("resume_delay_sec", 3.0)
         self.declare_parameter("nav_goal_timeout_sec", 60.0)
-        self.declare_parameter("enable_perception_sweep", True)
+        self.declare_parameter("enable_perception_sweep", False)
         self.declare_parameter("sweep_angular_vel", 0.4)
         self.declare_parameter("sweep_duration_sec", 18.0)
 
