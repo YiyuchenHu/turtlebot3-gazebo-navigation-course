@@ -34,13 +34,22 @@ docker run --rm --platform linux/amd64 alpine uname -m  # prints x86_64
 
 ## 2. Get the code
 
-Clone anywhere under your home directory (Docker Desktop shares `/Users`
-with containers by default):
+Clone straight into your home directory — the same place the README
+assumes — and **not** into Desktop or Documents:
 
 ```bash
+cd ~
 git clone git@github.com:YiyuchenHu/turtlebot3-gazebo-navigation-course.git
 cd turtlebot3-gazebo-navigation-course
 ```
+
+Why not Desktop/Documents: if iCloud's *Desktop & Documents Folders* sync is
+on (it is by default on many Macs), iCloud uploads every one of the
+thousands of files `colcon build` writes into `build/` and `install/`, slows
+the container's view of the checkout, and resurrects deleted build folders
+as `setup 2.bash`-style copies. Any folder outside those two is fine
+(Docker Desktop shares all of `/Users` with containers). An existing clone
+can simply be moved: `mv ~/Desktop/turtlebot3-gazebo-navigation-course ~/`.
 
 The detector weights ship with the repository (README → Installation →
 step 3): there is nothing to download.
@@ -204,6 +213,12 @@ Beyond that, in this order: give Docker more CPUs in Settings → Resources
 - **A window is black or empty for a few seconds after launching** — normal
   with software rendering; RViz in particular takes a moment to draw its
   first frame.
+- **`ros2 launch` says `Package 'tb3_bringup' not found` and
+  `install/setup.bash` does not exist, yet `install/` is full of files named
+  `setup 2.bash`, `tb3_bringup 2`, …** — iCloud restored a deleted build as
+  conflict copies: the checkout is inside an iCloud-synced folder (see
+  step 2). Move it out (`docker compose down` first, then `mv`), delete
+  `build/ install/ log/`, run `docker compose up -d` and `colcon build` again.
 - **The checkout is empty inside the container** — the clone lives outside
   the directories Docker Desktop shares. Settings → Resources → File sharing
   must include it (`/Users` is shared by default).
