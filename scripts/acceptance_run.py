@@ -50,6 +50,7 @@ This script never writes anything under src/.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -244,6 +245,29 @@ COMMAND_TIMEOUT = 180.0        # one /user_command -> TARGET_REACHED/FAILED
 POST_COMMAND_SETTLE = 6.0      # coordinator auto-resumes exploration 3 s after
                                # a terminal state; wait it out before the next
                                # command so the next query starts from EXPLORING
+
+# Start-up gates on EVIDENCE, not on elapsed time.  Two of the three unscored
+# runs in the 2026-09-03 series burned their whole budget on a stack that was
+# never going to work: in one, slam_toolbox never processed a scan, so /map
+# never appeared and Nav2 sat in "Activating planner_server" for the full 180 s
+# T2 budget; in the other the robot never moved from its first goal and the
+# map stayed frozen at its first scan for the full 600 s mapping budget.  Both
+# are visible within a minute: no /map at all, or a warm-up turn that does not
+# show up in /odom and does not grow the map.
+SLAM_MAP_DEADLINE = 60.0          # s after nav.launch starts: /map must exist
+WARMUP_LIVENESS_TIMEOUT = 60.0    # s after T3 is ready: both conditions below
+WARMUP_MIN_YAW_DEG = 30.0         # startup_map_warmup turns +-45 deg; the
+                                  # odom yaw span must show at least this
+WARMUP_MIN_MAP_UPDATES = 1        # /map CONTENT changes after T3 ready.  Counting
+                                  # messages is not enough: slam_toolbox republishes
+                                  # an unchanged map every map_update_interval, and
+                                  # a run whose SLAM froze after its first scan
+                                  # passed a message-count gate (2026-09-03, A/B run
+                                  # 2: 128 identical maps, robot never left spawn).
+                                  # One change is the discriminator: the +-45 deg
+                                  # warm-up yields one or two processed scans, and
+                                  # waiting for a second one held T4/T5 back until
+                                  # exploration had already started (28 s).
 
 # Environment preparation, verbatim from the README's "In every terminal"
 # block.  Every window runs this before its launch command.
@@ -677,7 +701,7 @@ def import_ros() -> None:
         import rclpy
         from rclpy.executors import SingleThreadedExecutor
         from rclpy.qos import (DurabilityPolicy, QoSProfile, ReliabilityPolicy)
-        from nav_msgs.msg import OccupancyGrid
+        from nav_msgs.msg import OccupancyGrid, Odometry
         from std_msgs.msg import String
         from vision_msgs.msg import Detection3DArray
     except ImportError as exc:
@@ -723,9 +747,25 @@ class Bridge:
         self._landmarks: Dict[str, Landmark] = {}
         self.coverage_pct: Optional[float] = None
         self.map_cells = 0
+        # Liveness evidence for the start-up gates: how many /map messages
+        # have arrived, how many of them carried DIFFERENT content, and the
+        # span of the robot's odom yaw since the last reset (unwrapped, so a
+        # turn across +-pi is not mis-read as 360).
+        self._map_count = 0
+        self._map_changes = 0
+        self._map_sig = None
+        self._yaw_last: Optional[float] = None
+        self._yaw_unwrapped = 0.0
+        self._yaw_min = 0.0
+        self._yaw_max = 0.0
+        self._odom_count = 0
 
         self.node.create_subscription(_ros["OccupancyGrid"], "/map",
                                       self._map_cb, latched)
+        # gazebo_ros diff drive publishes /odom RELIABLE; a matching profile
+        # is needed or the subscription never pairs.
+        self.node.create_subscription(_ros["Odometry"], "/odom",
+                                      self._odom_cb, volatile)
         self.node.create_subscription(
             _ros["Detection3DArray"],
             "/semantic_map_memory_node/landmark_objects",
@@ -773,9 +813,37 @@ class Bridge:
             unknown = data.count(-1)
         except AttributeError:
             unknown = int((data == -1).sum())
+        # Content signature: size plus a digest of the cells.  Cheap (a few
+        # thousand bytes at 1 Hz) and it is what separates a growing map from
+        # slam_toolbox's periodic republication of a frozen one.
+        sig = (msg.info.width, msg.info.height, unknown,
+               hashlib.md5(bytes(bytearray(data))).hexdigest())
         with self._lock:
             self.map_cells = total
             self.coverage_pct = 100.0 * (total - unknown) / total
+            self._map_count += 1
+            if sig != self._map_sig:
+                self._map_sig = sig
+                self._map_changes += 1
+
+    def _odom_cb(self, msg) -> None:
+        q = msg.pose.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        with self._lock:
+            self._odom_count += 1
+            if self._yaw_last is None:
+                self._yaw_last = yaw
+                return
+            d = yaw - self._yaw_last
+            while d > math.pi:
+                d -= 2.0 * math.pi
+            while d < -math.pi:
+                d += 2.0 * math.pi
+            self._yaw_last = yaw
+            self._yaw_unwrapped += d
+            self._yaw_min = min(self._yaw_min, self._yaw_unwrapped)
+            self._yaw_max = max(self._yaw_max, self._yaw_unwrapped)
 
     def _landmark_cb(self, msg) -> None:
         seen: Dict[str, Landmark] = {}
@@ -797,6 +865,30 @@ class Bridge:
             self._status.append((time.monotonic(), msg.data))
 
     # -- accessors ---------------------------------------------------------
+    def map_count(self) -> int:
+        with self._lock:
+            return self._map_count
+
+    def map_changes(self) -> int:
+        """Number of /map messages whose content differed from the previous one."""
+        with self._lock:
+            return self._map_changes
+
+    def odom_count(self) -> int:
+        with self._lock:
+            return self._odom_count
+
+    def reset_yaw_span(self) -> None:
+        """Start measuring the yaw span from the current heading."""
+        with self._lock:
+            self._yaw_unwrapped = 0.0
+            self._yaw_min = 0.0
+            self._yaw_max = 0.0
+
+    def yaw_span_deg(self) -> float:
+        with self._lock:
+            return math.degrees(self._yaw_max - self._yaw_min)
+
     def landmarks(self) -> Dict[str, Landmark]:
         with self._lock:
             return dict(self._landmarks)
@@ -842,7 +934,15 @@ class StageTimeout(Exception):
         self.reason = reason
 
 
-def start_terminal(term: Terminal, world: str, scale: float) -> None:
+def start_terminal(term: Terminal, world: str, scale: float,
+                   probe=None) -> None:
+    """Start one terminal and wait for its ready signal.
+
+    *probe*, if given, is called with the seconds elapsed on every poll and
+    returns a reason string when the evidence already says this terminal
+    cannot become ready; the wait is then aborted at once instead of
+    running out the full budget.
+    """
     launch = term.launch.format(world=world)
     tmux_send(term, "%s && %s" % (ENV_PREP.format(repo=REPO_ROOT), launch))
     timeout = term.timeout * scale
@@ -865,6 +965,10 @@ def start_terminal(term: Terminal, world: str, scale: float) -> None:
         if crashes:
             raise StageTimeout(term, "crash marker in %s: %s"
                                % (term.window, samples[0] if samples else "?"))
+        if probe is not None:
+            why = probe(timeout - (deadline - time.monotonic()))
+            if why:
+                raise StageTimeout(term, why)
         if time.monotonic() >= next_beat:
             log("     still waiting for %s ... (%.0fs left)"
                 % (term.window, deadline - time.monotonic()))
@@ -872,6 +976,72 @@ def start_terminal(term: Terminal, world: str, scale: float) -> None:
         time.sleep(2.0)
     raise StageTimeout(term, "%s never printed its ready signal within %.0fs"
                        % (term.window, timeout))
+
+
+def slam_map_probe(bridge: Bridge, scale: float):
+    """Probe for T2: no /map within SLAM_MAP_DEADLINE means SLAM is dead."""
+    deadline = SLAM_MAP_DEADLINE * scale
+
+    def probe(elapsed: float) -> Optional[str]:
+        if elapsed >= deadline and bridge.map_count() == 0:
+            return ("no /map %.0fs after nav.launch.py started: slam_toolbox has "
+                    "not processed a scan (check /scan and the odom TF); Nav2 "
+                    "cannot activate without the map frame" % elapsed)
+        return None
+    return probe
+
+
+def wait_for_warmup_liveness(bridge: Bridge, term: Terminal, scale: float) -> None:
+    """Gate T4/T5 on the warm-up turn being visible in /odom and /map.
+
+    startup_map_warmup_node turns the robot +-45 deg right after T3 comes up.
+    If that turn does not show in /odom the drivetrain or the simulation is
+    dead; if /map does not update slam_toolbox is not processing scans.
+    Either way nothing later can succeed, so abort now with the condition
+    that failed rather than after the 600 s mapping budget.
+    """
+    timeout = WARMUP_LIVENESS_TIMEOUT * scale
+    bridge.reset_yaw_span()
+    map_base = bridge.map_changes()
+    # If no map has been seen yet, the first one to arrive is the baseline,
+    # not evidence of change: a frozen SLAM would otherwise pass on it.
+    if bridge.map_count() == 0:
+        map_base += 1
+    log("warm-up liveness: need odom yaw span >= %.0f deg and >= %d /map content changes "
+        "within %.0fs" % (WARMUP_MIN_YAW_DEG, WARMUP_MIN_MAP_UPDATES, timeout))
+    t0 = time.monotonic()
+    deadline = t0 + timeout
+    next_beat = t0 + 15.0
+    while time.monotonic() < deadline:
+        yaw = bridge.yaw_span_deg()
+        updates = bridge.map_changes() - map_base
+        if yaw >= WARMUP_MIN_YAW_DEG and updates >= WARMUP_MIN_MAP_UPDATES:
+            log("warm-up liveness OK: odom yaw span %.0f deg, /map content changed %dx "
+                "in %.1fs" % (yaw, updates, time.monotonic() - t0))
+            return
+        if time.monotonic() >= next_beat:
+            log("     waiting for warm-up evidence: yaw span %.0f deg, /map "
+                "content changes %d (of %d messages), odom msgs %d (%.0fs left)"
+                % (yaw, updates, bridge.map_count(), bridge.odom_count(),
+                   deadline - time.monotonic()))
+            next_beat = time.monotonic() + 15.0
+        time.sleep(1.0)
+    yaw = bridge.yaw_span_deg()
+    updates = bridge.map_changes() - map_base
+    failed = []
+    if yaw < WARMUP_MIN_YAW_DEG:
+        failed.append("odom yaw span %.0f deg < %.0f deg (%s)"
+                      % (yaw, WARMUP_MIN_YAW_DEG,
+                         "no /odom messages at all" if bridge.odom_count() == 0
+                         else "the robot did not turn: drivetrain / cmd_vel / "
+                              "simulation not responding"))
+    if updates < WARMUP_MIN_MAP_UPDATES:
+        failed.append("/map content changed %dx < %dx over %d messages (slam_toolbox "
+                      "is not processing scans: the map is frozen%s)"
+                      % (updates, WARMUP_MIN_MAP_UPDATES, bridge.map_count(),
+                         "" if bridge.map_count() else "; no map at all"))
+    raise StageTimeout(term, "warm-up liveness failed after %.0fs: %s"
+                       % (timeout, "; ".join(failed)))
 
 
 def wait_for_landmarks(bridge: Bridge, cfg: dict, scale: float) -> bool:
@@ -1293,6 +1463,11 @@ def print_plan(args: argparse.Namespace) -> None:
         print("     ready when one line contains: %s"
               % " AND ".join(repr(t) for t in term.ready_tokens), flush=True)
     print(flush=True)
+    print("start-up gates : T2 aborts if no /map within %.0fs; after T3, the "
+          "warm-up must show >= %.0f deg odom yaw and >= %d /map content changes "
+          "within %.0fs"
+          % (SLAM_MAP_DEADLINE * scale, WARMUP_MIN_YAW_DEG,
+             WARMUP_MIN_MAP_UPDATES, WARMUP_LIVENESS_TIMEOUT * scale), flush=True)
     print("mapping stage  : wait up to %.0fs for %s"
           % (MAPPING_TIMEOUT * scale,
              ", ".join("%dx %r" % (n, c)
@@ -1404,11 +1579,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         tmux_start_session()
 
         banner("STAGE 1  --  bring up T1..T5 one at a time (this script is T6)")
+        # The bridge exists before the first terminal so the start-up gates
+        # can see /map and /odom as soon as they appear.
+        bridge = Bridge()
         for term in TERMINALS:
-            start_terminal(term, args.world, scale)
+            probe = slam_map_probe(bridge, scale) if term.window == "T2" else None
+            start_terminal(term, args.world, scale, probe=probe)
+            if term.window == "T3":
+                wait_for_warmup_liveness(bridge, term, scale)
 
         banner("STAGE 2  --  explore, map, and build semantic landmarks")
-        bridge = Bridge()
         # Robot and target poses come straight from the running simulation.
         truth.resolve_all()
         # Smoke-test the robot query too: resolve_all() only covers the static
