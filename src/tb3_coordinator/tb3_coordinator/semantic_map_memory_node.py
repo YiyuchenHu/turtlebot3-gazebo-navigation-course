@@ -10,9 +10,7 @@ Pipeline per observation:
   4. Reject wall-like islands (touches grid border or centroid near boundary)
   5. Snap observation to nearest valid island centroid
   6. Match refined point against existing landmarks/candidates (same class + distance)
-  7. Candidates promoted to persistent landmarks after min_observations,
-     provided no different-class candidate within the mutex distance has
-     as many observations (candidate-level mutex, compared at promotion)
+  7. Candidates promoted to persistent landmarks after min_observations
   8. Publish all persistent landmarks as MarkerArray
 
 Every rejection in that pipeline (range, TF, grid bounds, no island,
@@ -367,62 +365,6 @@ def check_geometry_consistency(
     return True, "no geometry check for class '%s'" % label
 
 
-def cross_class_rivals(label, x, y, landmarks, candidates,
-                       mutex_dist, mutex_min_obs):
-    """Strongest different-class entries within `mutex_dist` of (x, y).
-
-    Returns (landmark, candidate): the different-class landmark with the
-    most observations, and the different-class candidate with the most
-    observations among those at or above `mutex_min_obs`.  Either is None
-    when absent.  Pure function so the rule can be unit-tested.
-    """
-    best_lm = None
-    for lm in landmarks:
-        if lm.semantic_class == label:
-            continue
-        if math.hypot(lm.x - x, lm.y - y) < mutex_dist and (
-                best_lm is None or lm.observation_count > best_lm.observation_count):
-            best_lm = lm
-    best_c = None
-    for c in candidates:
-        if c.semantic_class == label:
-            continue
-        if math.hypot(c.x - x, c.y - y) < mutex_dist and c.obs_count >= mutex_min_obs and (
-                best_c is None or c.obs_count > best_c.obs_count):
-            best_c = c
-    return best_lm, best_c
-
-
-def landmark_mutex_blocks(label, x, y, landmarks, mutex_dist):
-    """Landmark-level rule, unchanged: a different-class LANDMARK within
-    `mutex_dist` rejects the observation.  Returns the landmark or None."""
-    best_lm, _ = cross_class_rivals(label, x, y, landmarks, (), mutex_dist, 0)
-    return best_lm
-
-
-def may_promote(cand, candidates, mutex_dist, mutex_min_obs):
-    """Candidate-level rule: promote only if `cand` strictly out-counts every
-    different-class candidate (n >= `mutex_min_obs`) within `mutex_dist`.
-
-    Returns (ok, rival).  ok=False means hold the promotion; the candidate
-    keeps counting.  rival is the strongest different-class candidate, or
-    None when there is none (ok is then True).
-
-    Why at promotion and not at feed time: dropping the smaller side's
-    observations starves it, so it can never overtake.  A fresh observation
-    has n=0 and would be dropped by any n>=3 candidate, which is exactly the
-    A·2 deadlock (person n=7 drops trash_can; person expires; trash_can n=4
-    then drops every person observation).  Comparing at promotion gives the
-    same winner, the class that is genuinely observed more, without
-    starving anyone; the landmark-level rule then suppresses the loser.
-    """
-    _, rival = cross_class_rivals(cand.semantic_class, cand.x, cand.y, (),
-                                  candidates, mutex_dist, mutex_min_obs)
-    if rival is None:
-        return True, None
-    return cand.obs_count > rival.obs_count, rival
-
-
 class SemanticMapMemoryNode(Node):
 
     # Rows of the gate summary, in pipeline order. The first six are the
@@ -552,13 +494,6 @@ class SemanticMapMemoryNode(Node):
         self._stat_expired = defaultdict(int)     # candidates timed out
         self._stat_expired_max_n = defaultdict(int)
         self._stat_expired_last = {}
-        # Candidate-level mutex bookkeeping (observation only).
-        self._stat_legacy_block = defaultdict(int)   # old rule would have dropped
-        self._stat_legacy_block_last = {}
-        self._stat_hold = defaultdict(int)           # promotions deferred
-        self._stat_hold_last = {}
-        self._stat_waived = defaultdict(int)         # promoted over a smaller rival
-        self._stat_waived_last = {}
         self._stat_t0 = _time.time()
         self._stat_printed = None      # snapshot at the last printed block
 
@@ -722,33 +657,6 @@ class SemanticMapMemoryNode(Node):
                            % (matched_cand.obs_count, class_min_obs, d_c,
                               matched_cand.x, matched_cand.y, obs_id))
                 if matched_cand.obs_count >= class_min_obs:
-                    ok, rival = may_promote(
-                        matched_cand, self._candidates,
-                        self._mutex_dist, self._mutex_min_obs)
-                    if not self._mutex_enabled:
-                        ok = True
-                    if not ok:
-                        self._stat_hold[label] += 1
-                        self._stat_hold_last[label] = (
-                            "n=%d/%d held by %s candidate n=%d d=%.2fm pos=(%.2f,%.2f)"
-                            % (matched_cand.obs_count, class_min_obs,
-                               rival.semantic_class, rival.obs_count,
-                               math.hypot(rival.x - matched_cand.x,
-                                          rival.y - matched_cand.y),
-                               matched_cand.x, matched_cand.y))
-                        if matched_cand.obs_count == class_min_obs:
-                            self.get_logger().info(
-                                "[mutex_hold] %s %s"
-                                % (label, self._stat_hold_last[label]))
-                        continue
-                    if rival is not None:
-                        self._stat_waived[label] += 1
-                        self._stat_waived_last[label] = (
-                            "n=%d promoted over %s candidate n=%d d=%.2fm"
-                            % (matched_cand.obs_count, rival.semantic_class,
-                               rival.obs_count,
-                               math.hypot(rival.x - matched_cand.x,
-                                          rival.y - matched_cand.y)))
                     self._note("promote", label,
                                "n=%d pos=(%.2f,%.2f)"
                                % (matched_cand.obs_count,
@@ -763,14 +671,10 @@ class SemanticMapMemoryNode(Node):
                 feeders={obs_id: 1}))
 
     def _check_cross_class_mutex(self, label, x, y):
-        """Landmark-level cross-class mutex (unchanged rule).
+        """Check if a different-class landmark or strong candidate is at the same location.
 
-        Returns (blocked, reason).  blocked=True means a different-class
-        LANDMARK within cross_class_mutex_distance_m rejects the observation.
-        Different-class CANDIDATES no longer reject observations here; they
-        are compared by observation count at promotion time instead (see
-        may_promote).  The old candidate-level drop is still counted as
-        `legacy_cand_block` so the log shows what it would have discarded.
+        Returns (blocked, reason) where blocked=True means the observation
+        should be rejected because a stronger different-class entry exists nearby.
         """
         if not self._mutex_enabled:
             return False, ""
@@ -785,24 +689,39 @@ class SemanticMapMemoryNode(Node):
         if label not in ("person", "chair", "trash_can"):
             return False, ""
 
-        best_lm, best_c = cross_class_rivals(
-            label, x, y, self._landmarks.values(), self._candidates,
-            self._mutex_dist, self._mutex_min_obs)
+        best_blocker = None
+        best_obs = 0
 
-        if best_lm is not None:
-            return True, (
-                "%s obs at (%.2f,%.2f) blocked by %s landmark %s (n=%d, d=%.2fm)"
-                % (label, x, y, best_lm.semantic_class, best_lm.landmark_id,
-                   best_lm.observation_count,
-                   math.hypot(best_lm.x - x, best_lm.y - y)))
+        for lm in self._landmarks.values():
+            if lm.semantic_class == label:
+                continue
+            d = math.hypot(lm.x - x, lm.y - y)
+            if d < self._mutex_dist and lm.observation_count > best_obs:
+                best_blocker = lm
+                best_obs = lm.observation_count
 
-        if best_c is not None:
-            # Observation only: the pre-D2 rule would have dropped this one.
-            self._stat_legacy_block[label] += 1
-            self._stat_legacy_block_last[label] = (
-                "%s obs at (%.2f,%.2f) vs %s candidate n=%d d=%.2fm"
-                % (label, x, y, best_c.semantic_class, best_c.obs_count,
-                   math.hypot(best_c.x - x, best_c.y - y)))
+        for c in self._candidates:
+            if c.semantic_class == label:
+                continue
+            d = math.hypot(c.x - x, c.y - y)
+            if d < self._mutex_dist and c.obs_count >= self._mutex_min_obs and c.obs_count > best_obs:
+                best_blocker = c
+                best_obs = c.obs_count
+
+        if best_blocker is not None:
+            if isinstance(best_blocker, Landmark):
+                reason = (
+                    "%s obs at (%.2f,%.2f) blocked by %s landmark %s (n=%d, d=%.2fm)"
+                    % (label, x, y, best_blocker.semantic_class,
+                       best_blocker.landmark_id, best_blocker.observation_count,
+                       math.hypot(best_blocker.x - x, best_blocker.y - y)))
+            else:
+                reason = (
+                    "%s obs at (%.2f,%.2f) blocked by %s candidate (n=%d, d=%.2fm)"
+                    % (label, x, y, best_blocker.semantic_class,
+                       best_blocker.obs_count,
+                       math.hypot(best_blocker.x - x, best_blocker.y - y)))
+            return True, reason
 
         return False, ""
 
@@ -902,8 +821,6 @@ class SemanticMapMemoryNode(Node):
 
     def _stat_snapshot(self):
         return (self._stat_msgs, self._stat_msgs_no_map,
-                tuple(sorted(self._stat_hold.items())),
-                tuple(sorted(self._stat_legacy_block.items())),
                 tuple(sorted(self._stat_in.items())),
                 tuple((row, tuple(sorted(self._stat[row].items())))
                       for row in self.STAT_ROWS),
@@ -933,18 +850,6 @@ class SemanticMapMemoryNode(Node):
                             " ".join("%*d" % (col, counts.get(lb, 0))
                                      for lb in labels),
                             last_lb, last_txt))
-        for name, counts, last in (("legacy_cand_block", self._stat_legacy_block,
-                                    self._stat_legacy_block_last),
-                                   ("mutex_hold", self._stat_hold, self._stat_hold_last),
-                                   ("mutex_waived", self._stat_waived,
-                                    self._stat_waived_last)):
-            if counts:
-                last_lb, last_txt = next(reversed(last.items()))
-                lines.append("  %-15s %s  %s: %s"
-                             % (name,
-                                " ".join("%*d" % (col, counts.get(lb, 0))
-                                         for lb in labels),
-                                last_lb, last_txt))
         if self._stat_expired:
             lines.append("  %-15s %s"
                          % ("expired",
