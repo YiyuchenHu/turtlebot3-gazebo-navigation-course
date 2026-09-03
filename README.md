@@ -14,6 +14,14 @@ pipeline runs end to end. The assignment, interface contract and acceptance
 criteria are in **[INSTRUCTIONS.md](INSTRUCTIONS.md)**. Design rationale, measured
 results and advanced debugging notes are in **[NOTES.md](NOTES.md)**.
 
+## Choose your platform
+
+| Platform | Start here | What you get |
+|---|---|---|
+| **Ubuntu 22.04** *(default — the validated setup)* | [Installation](#installation), then [Running](#running--one-subsystem-per-terminal) below | native ROS 2 Humble + Gazebo Classic 11 |
+| **macOS** (Apple Silicon or Intel) | [docs/setup-macos.md](docs/setup-macos.md) | a Docker container with this checkout mounted and Gazebo/RViz in a browser tab, then the same Build and Running sections |
+| **Windows 10/11** | [docs/setup-windows.md](docs/setup-windows.md) | Docker Desktop + WSL 2, the same container as macOS |
+
 ## Demo
 
 Two clips are planned and land in `docs/media/`:
@@ -27,7 +35,9 @@ Two clips are planned and land in `docs/media/`:
 
 ## System requirements
 
-- Ubuntu 22.04 with **ROS 2 Humble** and **Gazebo Classic 11**
+- Ubuntu 22.04 with **ROS 2 Humble** and **Gazebo Classic 11** (macOS and
+  Windows run the same stack in a Docker container — see
+  [Choose your platform](#choose-your-platform))
 - A machine that can run Gazebo + Nav2 + SLAM comfortably (4+ CPU cores recommended)
 - `tmux`, for `scripts/acceptance_run.sh` only
 
@@ -108,24 +118,18 @@ worlds that reference them in `src/tb3_bringup/worlds/`; see
 [NOTICE](NOTICE)) and wired up via `GAZEBO_MODEL_PATH` inside the launch
 files — no online model database access is needed.
 
-### macOS (Docker) — coming soon
+### macOS (Docker)
 
-Not available yet; the steps below mirror the Ubuntu skeleton above so the gaps
-are visible. For now use a native or VM Ubuntu 22.04 installation.
+See [docs/setup-macos.md](docs/setup-macos.md). It gets you a container with
+this repository mounted at `~/turtlebot3-gazebo-navigation-course` and the
+Gazebo/RViz windows in a browser tab, then sends you back to step 4 above and
+to [Running](#running--one-subsystem-per-terminal). The Dockerfile and compose
+file it uses live in [`docker/`](docker/).
 
-- **1. Install Docker Desktop** — TBD
-- **2. Pull the course image** — TBD
-- **3. Detector weights** — TBD
-- **4. Run the container with X11/GUI forwarding** — TBD
+### Windows (Docker)
 
-### Windows (Docker) — coming soon
-
-Not available yet. For now use a native or VM Ubuntu 22.04 installation.
-
-- **1. Install Docker Desktop + WSL2** — TBD
-- **2. Pull the course image** — TBD
-- **3. Detector weights** — TBD
-- **4. Run the container with X11/GUI forwarding** — TBD
+See [docs/setup-windows.md](docs/setup-windows.md): Docker Desktop + WSL 2,
+running the same image and compose file as macOS.
 
 ## Running — one subsystem per terminal
 
@@ -312,6 +316,10 @@ the ghost more likely, not less.
 | `tb3_query` | rule-based command parsing (`SemanticQueryResult` msg) |
 | `tb3_nav_adapter` | approach-pose computation for Nav2 |
 | `tb3_frontier_exploration` | frontier detection + goal assignment (C++) |
+
+Outside `src/`: [`docker/`](docker/) holds the Dockerfile and compose file
+behind the macOS and Windows setups, [`docs/`](docs/) the per-platform
+setup pages and demo media, [`scripts/`](scripts/) the acceptance run.
 
 How they fit together:
 
