@@ -1,3 +1,10 @@
+> **⚠️ OUTDATED BRANCH — do not work here.**
+> `main` is frozen at 2026-08-18 and kept only as a historical reference.
+> Current work lives on the `reference` branch: `git checkout reference`
+> Since then the detector weights and model, the target objects, the launch
+> procedure, and the directory layout have all changed — this README does
+> not describe the current project.
+
 # TurtleBot3 Gazebo Navigation Course
 
 A ROS 2 course workspace for **object-based semantic navigation** on a
