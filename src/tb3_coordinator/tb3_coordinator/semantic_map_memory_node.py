@@ -29,7 +29,7 @@ from __future__ import annotations
 import math
 import time as _time
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
@@ -57,6 +57,18 @@ class Candidate:
     y: float
     obs_count: int = 1
     last_seen: float = 0.0
+    # Observation only: short-term-memory id -> observations contributed.
+    feeders: dict = field(default_factory=dict)
+
+    def feeder_summary(self, top=3):
+        """'k ids, top X% : id:n,id:n' for the log."""
+        if not self.feeders:
+            return "no ids"
+        total = sum(self.feeders.values())
+        ranked = sorted(self.feeders.items(), key=lambda kv: -kv[1])
+        return "%d ids, top %.0f%%: %s" % (
+            len(ranked), 100.0 * ranked[0][1] / max(1, total),
+            ",".join("%s:%d" % kv for kv in ranked[:top]))
 
 
 @dataclass
@@ -703,7 +715,7 @@ class SemanticMapMemoryNode(Node):
             matched_cand = self._find_candidate(label, rx, ry)
             if matched_cand is not None:
                 d_c = math.hypot(matched_cand.x - rx, matched_cand.y - ry)
-                self._update_candidate(matched_cand, rx, ry, now)
+                self._update_candidate(matched_cand, rx, ry, now, obs_id)
                 class_min_obs = self._class_min_obs.get(label, self._min_obs)
                 self._note("merge_candidate", label,
                            "n=%d/%d d=%.2f pos=(%.2f,%.2f) id=%s"
@@ -747,7 +759,8 @@ class SemanticMapMemoryNode(Node):
             self._note("new_candidate", label,
                        "pos=(%.2f,%.2f) r=%.2f id=%s" % (rx, ry, obs_range, obs_id))
             self._candidates.append(Candidate(
-                semantic_class=label, x=rx, y=ry, obs_count=1, last_seen=now))
+                semantic_class=label, x=rx, y=ry, obs_count=1, last_seen=now,
+                feeders={obs_id: 1}))
 
     def _check_cross_class_mutex(self, label, x, y):
         """Landmark-level cross-class mutex (unchanged rule).
@@ -830,12 +843,13 @@ class SemanticMapMemoryNode(Node):
                 "[merge_landmark] %s  n=%d  pos=(%.2f, %.2f)"
                 % (lm.landmark_id, lm.observation_count, lm.x, lm.y))
 
-    def _update_candidate(self, c, x, y, now):
+    def _update_candidate(self, c, x, y, now, obs_id="-"):
         n = c.obs_count
         c.x = (c.x * n + x) / (n + 1)
         c.y = (c.y * n + y) / (n + 1)
         c.obs_count = n + 1
         c.last_seen = now
+        c.feeders[obs_id] = c.feeders.get(obs_id, 0) + 1
 
     def _promote(self, c):
         seq = self._next_seq.get(c.semantic_class, 0)
@@ -848,8 +862,9 @@ class SemanticMapMemoryNode(Node):
         self._landmarks[lid] = lm
         self._candidates.remove(c)
         self.get_logger().info(
-            "[new_landmark] %s  pos=(%.2f, %.2f)  after %d obs  total=%d"
-            % (lid, lm.x, lm.y, c.obs_count, len(self._landmarks)))
+            "[new_landmark] %s  pos=(%.2f, %.2f)  after %d obs  total=%d  feeders=%s"
+            % (lid, lm.x, lm.y, c.obs_count, len(self._landmarks),
+               c.feeder_summary()))
 
     def _cleanup_candidates(self):
         now = _time.time()
@@ -871,9 +886,9 @@ class SemanticMapMemoryNode(Node):
             self._stat_expired_max_n[c.semantic_class] = max(
                 self._stat_expired_max_n[c.semantic_class], c.obs_count)
             self._stat_expired_last[c.semantic_class] = (
-                "n=%d/%d (short %d) age=%.0fs pos=(%.2f,%.2f)"
+                "n=%d/%d (short %d) age=%.0fs pos=(%.2f,%.2f) feeders=%s"
                 % (c.obs_count, need, max(0, need - c.obs_count),
-                   now - c.last_seen, c.x, c.y))
+                   now - c.last_seen, c.x, c.y, c.feeder_summary()))
             self.get_logger().info(
                 "[cleanup] expired %s candidate %s"
                 % (c.semantic_class, self._stat_expired_last[c.semantic_class]))
@@ -942,10 +957,10 @@ class SemanticMapMemoryNode(Node):
         now = _time.time()
         if self._candidates:
             lines.append("  candidates: " + " | ".join(
-                "%s n=%d/%d age=%.0fs (%.2f,%.2f)"
+                "%s n=%d/%d age=%.0fs (%.2f,%.2f) [%s]"
                 % (c.semantic_class, c.obs_count,
                    self._class_min_obs.get(c.semantic_class, self._min_obs),
-                   now - c.last_seen, c.x, c.y)
+                   now - c.last_seen, c.x, c.y, c.feeder_summary())
                 for c in self._candidates))
         if self._landmarks:
             lines.append("  landmarks: " + " | ".join(
