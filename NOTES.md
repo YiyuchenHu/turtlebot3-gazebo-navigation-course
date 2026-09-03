@@ -32,6 +32,7 @@ measurement, and approximations, which are written with a leading `~`.
 - [6. Measured results, and how they were measured](#6-measured-results-and-how-they-were-measured)
 - [7. Advanced debugging](#7-advanced-debugging)
 - [8. Notes for whoever maintains this next](#8-notes-for-whoever-maintains-this-next)
+- [8.1 Known issue: the chair is mislabelled `trash_can` from some viewpoints](#81-known-issue-the-chair-is-mislabelled-trash_can-from-some-viewpoints)
 - [9. Bonus / extension material](#9-bonus--extension-material)
 
 ---
@@ -907,6 +908,56 @@ in T2, the readiness signal is
 and fires **earlier**. Any automated wait must require the `_navigation`
 substring on the same line, or it will proceed while Nav2 is still starting and
 produce a confusing cascade of downstream failures.
+
+### 8.1 Known issue: the chair is mislabelled `trash_can` from some viewpoints
+
+**What happens.** From certain robot viewpoints the fine-tuned detector labels
+the chair (`semantic_chair`, yaw −0.9 in `warehouse_semantic_models.world`) as
+`trash_can` at confidence 0.97–0.99, in centred boxes at 1–2 m, at a rate of
+the same order as the correct label (one 66 s window in a 2026-09-03 run had
+236 `trash_can` frames against 162 `chair` frames while the robot faced the
+chair). The held-out test set showed 0 chair↔trash_can confusions in 1553
+boxes; it does not cover the viewpoints the robot actually takes.
+
+**Mechanism, and what it is not.** The per-candidate feeder-id histogram in
+`semantic_map_memory_node` (the `feeders=` field on candidate, promotion and
+expiry lines) shows the `trash_can` candidates on the chair are fed by
+several distinct short-term-memory ids, each refreshed by new frames and
+none of them the id that feeds the genuine trash-can landmark. That is
+detector confusion. It is **not** a stale robot-relative position from the
+short-term memory being re-projected through a newer TF — that would show as
+one id, the real trash can's, contributing repeatedly, and it was not seen.
+The frame-edge-box drop in the localizer (`edge_margin_px`) does not touch it
+either: these boxes are centred.
+
+**Consequence.** A `trash_can` candidate accumulates on the chair while the
+chair's own candidate is fed. If the wrong-label candidate reaches
+`trash_can_min_observations` (12) first — typically after the chair
+candidate died at `candidate_timeout` (45 s) between two visits and restarted
+from zero — it is promoted as a ghost landmark (`trash_can_1` at the chair's
+position), and the landmark-level cross-class mutex then rejects every later
+chair observation. The chair is never promoted and `go to chair` fails for the
+rest of the run.
+
+**Rate.** 0 of 8 runs with the shipped configuration (2026-09-04 validation
+series). 2 of 8 with `candidate_timeout` at 120 s, and 1 of 8 with a
+candidate-level mutex that compared observation counts at promotion; both
+changes are in the history and reverted.
+
+**Why `candidate_timeout` must stay at 45 s.** A longer timeout lets the
+wrong-label candidate survive the gaps between visits and reach 12; that is
+exactly how the two 120 s ghosts formed. Comparing observation counts between
+the two candidates does not help: at this confusion rate the wrong label can
+out-count a chair candidate that has just restarted, and the promotion-time
+comparison never held a single promotion in eight runs.
+
+**Two candidate fixes, neither done.** (1) A per-location label vote: keep
+the counts of *all* labels observed at a position together, promote only the
+majority label, require a majority share of about 0.6, and let counts decay
+on expiry rather than reset. (2) Fix the detector: the confusing chair
+viewpoints are in the 2026-09-03 acceptance logs; add them (and negatives) to
+the training set. Until one of these lands, the symptom is visible in RViz as
+a `trash_can` marker on the chair, and a restart clears it.
 
 ---
 

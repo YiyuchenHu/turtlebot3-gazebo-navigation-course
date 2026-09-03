@@ -45,18 +45,32 @@ sudo apt install \
   ros-humble-navigation2 ros-humble-nav2-bringup \
   ros-humble-slam-toolbox \
   ros-humble-vision-msgs ros-humble-cv-bridge \
+  ros-humble-tf2-geometry-msgs \
   ros-humble-rqt-image-view \
   python3-colcon-common-extensions \
   python3-pip \
   tmux
 ```
 
-**2. pip packages** (the detector imports them)
+(`ros-humble-desktop` already pulls `tf2-geometry-msgs`, `rviz2`, `xacro`
+and the `gazebo` 11 runtime comes with `gazebo-ros-pkgs`; the explicit entry
+just makes the `package.xml` dependency visible.)
+
+**2. pip packages** (the detector imports them). Order and pins matter:
+`ultralytics` pulls in `torch`, and left to itself it fetches the CUDA build
+(about 2 GB); installing the CPU build first makes pip keep it. `numpy` is
+pinned below 2.0 because ROS Humble's `cv_bridge` Python binding is built
+against NumPy 1.x, and `opencv-python` is pinned to the version this
+repository was validated with.
 
 ```bash
-pip install 'ultralytics==8.4.31'
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
+pip install 'numpy==1.26.4' 'opencv-python==4.9.0.80' 'ultralytics==8.4.31'
 ```
+
+Validated on Ubuntu 22.04 / Python 3.10.12 with exactly these versions
+(`torch 2.5.1+cpu`, `torchvision 0.20.1+cpu`, `ultralytics 8.4.31`,
+`numpy 1.26.4`, `cv2 4.9.0`); `python3-yaml` comes with ROS.
 
 **3. Detector weights** — nothing to do. `src/tb3_detector/models/tb3det_yolo26n.pt`
 (5.4 MB, yolo26n fine-tuned on the three course targets) ships with the
@@ -266,6 +280,25 @@ landmarks built so far are lost, so the robot re-explores from scratch.
 
 Do **not** try to fix this by lowering `conf_threshold` or widening
 `class_filter` — they are unrelated; see [NOTES.md](NOTES.md).
+
+### `go to chair` keeps failing and RViz shows a `trash_can` marker on the chair
+
+**Symptom.** The person and the trash can are found and reached, but the
+chair never appears as `chair_0`; instead a second trash-can marker
+(`trash_can_1`) sits where the chair is, and `go to chair` ends in
+`query failed: no active chair in memory`.
+
+**This is a known issue, not your code.** From some viewpoints the shipped
+detector labels the chair as a trash can with high confidence; if that wrong
+label reaches the promotion threshold first, the semantic map memory keeps
+it and suppresses the chair for the rest of the run. It happened in 0 of 8
+reference runs with the shipped settings, so it is rare, but it does occur.
+Details and the mechanism are in [NOTES.md §8.1](NOTES.md).
+
+**Fix.** Run the clean-restart procedure above and start a fresh round; the
+map and landmarks are rebuilt and the chair is normally found within about
+two minutes. Do not raise `candidate_timeout` to work around it — that makes
+the ghost more likely, not less.
 
 ## Repository layout
 
