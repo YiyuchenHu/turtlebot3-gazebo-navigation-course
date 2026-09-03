@@ -89,7 +89,15 @@ semantic_map_memory_node:
     max_observation_range_m:   2.5
 
     # ── Class-aware gating ────────────────────────────
-    person_max_range_m:        2.5
+    # person was 2.5 m while the other two were 3.2 m. Measured over 12
+    # instrumented runs (reports 2026-09-03): that gate rejected 43% of all
+    # person observations (34% of localizer frames fall in 2.5-3.3 m) and
+    # only 24% of them reached the candidate counter, which is why the
+    # person was the last landmark in every slow run (315-405 s). Far
+    # points whose LiDAR window hit the wall behind the person land
+    # outside the grid or in free space and are dropped by the
+    # out_of_grid / no_island gates anyway. Aligned to 3.2 m.
+    person_max_range_m:        3.2
     chair_max_range_m:         3.2
     trash_can_max_range_m:     3.2
     # Promotion threshold for `person` candidates. Bumped 3 → 8 to
