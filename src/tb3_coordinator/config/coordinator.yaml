@@ -81,15 +81,7 @@ semantic_map_memory_node:
 
     # ── Candidate lifecycle ────────────────────────────────
     # Seconds before an unconfirmed candidate is discarded.
-    # Was 45 s. Over 12 instrumented runs all 33 candidate expiries had an
-    # age of 45-49 s: a candidate at n=4-7 of 8 died between two visits of
-    # the same object and the count restarted from zero on the next pass,
-    # which is what stretched the slow runs to 315-405 s. 120 s covers the
-    # gap between visits seen in those runs. Trade-off: a mis-placed
-    # candidate (a trash_can label on the person from a frame-edge box)
-    # also lives longer; those reached at most n=10 of 12 in the baseline,
-    # so watch the gate_summary for a cross-class candidate on a target.
-    candidate_timeout:        120.0
+    candidate_timeout:        45.0
 
     # ── Observation quality ───────────────────────────
     # Reject observations farther than this from robot (in base_link).
