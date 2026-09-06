@@ -75,8 +75,35 @@ class Landmark:
     semantic_class: str
     x: float
     y: float
-    observation_count: int = 1
     last_seen: float = 0.0
+    # Evidence per detector label observed inside this landmark's merge
+    # radius, INCLUDING labels that disagree with `semantic_class`. Before
+    # this existed the cross-class mutex threw disagreeing observations away,
+    # so a landmark that was promoted under the wrong label could never be
+    # corrected: the correct observations were the ones being discarded
+    # (measured 2026-09-05: 86 `chair` observations rejected by a
+    # `trash_can_1` landmark sitting on the chair). Keeping the counts turns
+    # that same disagreement into the evidence for a relabel.
+    class_counts: dict = field(default_factory=dict)
+
+    @property
+    def observation_count(self):
+        """Observations supporting the CURRENT label.
+
+        This is what the position EMA, the marker text, the mutex strength
+        and the published hypothesis score all mean by "n" - a landmark with
+        12 trash_can and 86 chair observations still has n=12 while it is
+        labelled trash_can.
+        """
+        return self.class_counts.get(self.semantic_class, 0)
+
+    def counts_summary(self):
+        """'chair:86,trash_can:12' - strongest label first."""
+        if not self.class_counts:
+            return "-"
+        return ",".join(
+            "%s:%d" % kv
+            for kv in sorted(self.class_counts.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
 # Keyed by DETECTOR LABEL, because that is what `Landmark.semantic_class`
@@ -365,13 +392,49 @@ def check_geometry_consistency(
     return True, "no geometry check for class '%s'" % label
 
 
+def should_relabel(class_counts, current_class, relabel_ratio,
+                   class_min_obs, default_min_obs=3):
+    """Pure rule: which label should replace `current_class`, or None.
+
+    A challenger label takes over only when BOTH hold:
+
+      * it has at least `relabel_ratio` times as many observations as the
+        current label - the hysteresis that stops two labels flip-flopping
+        while their counts are close, and
+      * it has reached its own `min_observations` promotion threshold, so a
+        handful of stray detections cannot rename an established landmark.
+
+    Equal counts never relabel (ratio >= 1.0). Because the losing label keeps
+    its count, flipping back needs `relabel_ratio` times the NEW label's
+    count, which is what makes the correction stable rather than oscillating.
+
+    Ties between two qualifying challengers go to the larger count, then to
+    the alphabetically first label, so the outcome never depends on dict
+    ordering.
+    """
+    current = class_counts.get(current_class, 0)
+    best_label = None
+    best_n = -1
+    for label, n in sorted(class_counts.items()):
+        if label == current_class:
+            continue
+        if n < class_min_obs.get(label, default_min_obs):
+            continue
+        if n < relabel_ratio * current:
+            continue
+        if n > best_n:
+            best_label, best_n = label, n
+    return best_label
+
+
 class SemanticMapMemoryNode(Node):
 
     # Rows of the gate summary, in pipeline order. The first six are the
     # rejection gates of _obs_cb (the four that used to be silent, plus the
     # two that already log per event); the last four are the success paths.
     GATE_ROWS = ("range", "tf", "out_of_grid", "no_island", "geometry", "mutex")
-    PASS_ROWS = ("merge_landmark", "merge_candidate", "new_candidate", "promote")
+    PASS_ROWS = ("merge_landmark", "cross_evidence", "relabel",
+                 "merge_candidate", "new_candidate", "promote")
     STAT_ROWS = GATE_ROWS + PASS_ROWS
 
     def __init__(self):
@@ -407,6 +470,8 @@ class SemanticMapMemoryNode(Node):
         self.declare_parameter("person_max_islands", 2)
         self.declare_parameter("person_max_total_px", 20)
         self.declare_parameter("bench_min_total_px", 8)
+        self.declare_parameter("relabel_enabled", True)
+        self.declare_parameter("relabel_ratio", 1.5)
         self.declare_parameter("cross_class_mutex_enabled", True)
         self.declare_parameter("cross_class_mutex_distance_m", 0.6)
         self.declare_parameter("mutex_min_observation_count", 3)
@@ -452,6 +517,8 @@ class SemanticMapMemoryNode(Node):
         self._person_max_px = self.get_parameter("person_max_total_px").value
         self._bench_min_px = self.get_parameter("bench_min_total_px").value
 
+        self._relabel_enabled = self.get_parameter("relabel_enabled").value
+        self._relabel_ratio = float(self.get_parameter("relabel_ratio").value)
         self._mutex_enabled = self.get_parameter("cross_class_mutex_enabled").value
         self._mutex_dist = self.get_parameter("cross_class_mutex_distance_m").value
         self._mutex_min_obs = self.get_parameter("mutex_min_observation_count").value
@@ -505,9 +572,10 @@ class SemanticMapMemoryNode(Node):
 
         self.get_logger().info(
             "SemanticMapMemoryNode ready  merge=%.2fm  cand=%.2fm  min_obs=%d  "
-            "search_r=%d  wall_margin=%.2fm  min_island=%d"
+            "search_r=%d  wall_margin=%.2fm  min_island=%d  relabel=%s(x%.2f)"
             % (self._merge_d, self._cand_d, self._min_obs,
-               self._search_r, self._wall_margin_m, self._min_island))
+               self._search_r, self._wall_margin_m, self._min_island,
+               "on" if self._relabel_enabled else "off", self._relabel_ratio))
 
     def _map_cb(self, msg):
         self._map_width = msg.info.width
@@ -647,6 +715,11 @@ class SemanticMapMemoryNode(Node):
                               matched_lm.observation_count, d_lm, obs_id))
                 continue
 
+            other_lm = self._find_landmark_other_class(label, rx, ry)
+            if other_lm is not None:
+                self._record_cross_evidence(other_lm, label, rx, ry, now)
+                continue
+
             matched_cand = self._find_candidate(label, rx, ry)
             if matched_cand is not None:
                 d_c = math.hypot(matched_cand.x - rx, matched_cand.y - ry)
@@ -671,10 +744,18 @@ class SemanticMapMemoryNode(Node):
                 feeders={obs_id: 1}))
 
     def _check_cross_class_mutex(self, label, x, y):
-        """Check if a different-class landmark or strong candidate is at the same location.
+        """Check if a strong different-class CANDIDATE sits at this location.
 
-        Returns (blocked, reason) where blocked=True means the observation
-        should be rejected because a stronger different-class entry exists nearby.
+        Returns (blocked, reason); blocked=True means the observation is
+        rejected because a stronger different-class candidate exists nearby.
+
+        Landmarks are deliberately not consulted any more. A disagreeing
+        observation that lands on an existing landmark is now recorded as
+        evidence against that landmark's label (see `_record_cross_evidence`)
+        instead of being discarded, which is what makes a mislabelled
+        landmark recoverable. The candidate half of the rule is unchanged:
+        it is the gate that stopped label swaps from ever being promoted in
+        the first place, and it is still doing that job.
         """
         if not self._mutex_enabled:
             return False, ""
@@ -692,14 +773,6 @@ class SemanticMapMemoryNode(Node):
         best_blocker = None
         best_obs = 0
 
-        for lm in self._landmarks.values():
-            if lm.semantic_class == label:
-                continue
-            d = math.hypot(lm.x - x, lm.y - y)
-            if d < self._mutex_dist and lm.observation_count > best_obs:
-                best_blocker = lm
-                best_obs = lm.observation_count
-
         for c in self._candidates:
             if c.semantic_class == label:
                 continue
@@ -709,18 +782,11 @@ class SemanticMapMemoryNode(Node):
                 best_obs = c.obs_count
 
         if best_blocker is not None:
-            if isinstance(best_blocker, Landmark):
-                reason = (
-                    "%s obs at (%.2f,%.2f) blocked by %s landmark %s (n=%d, d=%.2fm)"
-                    % (label, x, y, best_blocker.semantic_class,
-                       best_blocker.landmark_id, best_blocker.observation_count,
-                       math.hypot(best_blocker.x - x, best_blocker.y - y)))
-            else:
-                reason = (
-                    "%s obs at (%.2f,%.2f) blocked by %s candidate (n=%d, d=%.2fm)"
-                    % (label, x, y, best_blocker.semantic_class,
-                       best_blocker.obs_count,
-                       math.hypot(best_blocker.x - x, best_blocker.y - y)))
+            reason = (
+                "%s obs at (%.2f,%.2f) blocked by %s candidate (n=%d, d=%.2fm)"
+                % (label, x, y, best_blocker.semantic_class,
+                   best_blocker.obs_count,
+                   math.hypot(best_blocker.x - x, best_blocker.y - y)))
             return True, reason
 
         return False, ""
@@ -739,6 +805,26 @@ class SemanticMapMemoryNode(Node):
                     best_score = score
         return best
 
+    def _find_landmark_other_class(self, label, x, y):
+        """Nearest landmark of a DIFFERENT class within the merge radius.
+
+        Same radius as the same-class match: an observation close enough to
+        be merged into a landmark is close enough to be evidence about what
+        that landmark actually is. Nearest wins, so when two landmarks of
+        different classes are both in range the observation is attributed to
+        the one it most likely belongs to.
+        """
+        best = None
+        best_d = float("inf")
+        for lm in self._landmarks.values():
+            if lm.semantic_class == label:
+                continue
+            d = math.hypot(lm.x - x, lm.y - y)
+            if d < self._merge_d and d < best_d:
+                best = lm
+                best_d = d
+        return best
+
     def _find_candidate(self, label, x, y):
         best = None
         best_d = float("inf")
@@ -752,10 +838,14 @@ class SemanticMapMemoryNode(Node):
         return best
 
     def _update_landmark(self, lm, x, y, now):
+        # Position is averaged over observations of the CURRENT label only:
+        # a disagreeing observation is evidence about the label, not about
+        # where the object is, and letting it move the landmark would drag
+        # the position towards whatever else is nearby.
         n = lm.observation_count
         lm.x = (lm.x * n + x) / (n + 1)
         lm.y = (lm.y * n + y) / (n + 1)
-        lm.observation_count = n + 1
+        lm.class_counts[lm.semantic_class] = n + 1
         lm.last_seen = now
         if lm.observation_count % 50 == 0:
             self.get_logger().info(
@@ -770,14 +860,61 @@ class SemanticMapMemoryNode(Node):
         c.last_seen = now
         c.feeders[obs_id] = c.feeders.get(obs_id, 0) + 1
 
+    def _record_cross_evidence(self, lm, label, x, y, now):
+        """Count a disagreeing observation against `lm`, and relabel if due."""
+        lm.class_counts[label] = lm.class_counts.get(label, 0) + 1
+        lm.last_seen = now
+        d = math.hypot(lm.x - x, lm.y - y)
+        self._note("cross_evidence", label,
+                   "%s (%s) n_%s=%d d=%.2f [%s]"
+                   % (lm.landmark_id, lm.semantic_class, label,
+                      lm.class_counts[label], d, lm.counts_summary()))
+        if not self._relabel_enabled:
+            return
+        new_label = should_relabel(
+            lm.class_counts, lm.semantic_class, self._relabel_ratio,
+            self._class_min_obs, self._min_obs)
+        if new_label is not None:
+            self._relabel(lm, new_label)
+
+    def _relabel(self, lm, new_label):
+        """Retire the landmark's id and re-issue it under `new_label`."""
+        old_id = lm.landmark_id
+        old_label = lm.semantic_class
+        old_n = lm.class_counts.get(old_label, 0)
+        new_n = lm.class_counts.get(new_label, 0)
+
+        seq = self._next_seq.get(new_label, 0)
+        self._next_seq[new_label] = seq + 1
+        new_id = "%s_%d" % (new_label, seq)
+
+        # The old id is retired, never reused: anything holding on to it
+        # (a pending nav goal, a log line) should not silently start
+        # referring to a landmark that now means something else.
+        self._landmarks.pop(old_id, None)
+        lm.landmark_id = new_id
+        lm.semantic_class = new_label
+        self._landmarks[new_id] = lm
+
+        self.get_logger().info(
+            "[relabel] relabeled %s -> %s at (%.2f, %.2f): %s %d vs %s %d"
+            % (old_id, new_id, lm.x, lm.y, new_label, new_n, old_label, old_n))
+        self._note("relabel", new_label,
+                   "%s -> %s at (%.2f,%.2f) [%s]"
+                   % (old_id, new_id, lm.x, lm.y, lm.counts_summary()))
+        # Markers, marker text and landmark_objects are all rebuilt from
+        # self._landmarks on the next publish tick, so colour, label text and
+        # the query-visible class follow from here with no extra work.
+        self._publish_markers()
+
     def _promote(self, c):
         seq = self._next_seq.get(c.semantic_class, 0)
         self._next_seq[c.semantic_class] = seq + 1
         lid = "%s_%d" % (c.semantic_class, seq)
         lm = Landmark(
             landmark_id=lid, semantic_class=c.semantic_class,
-            x=c.x, y=c.y,
-            observation_count=c.obs_count, last_seen=c.last_seen)
+            x=c.x, y=c.y, last_seen=c.last_seen,
+            class_counts={c.semantic_class: c.obs_count})
         self._landmarks[lid] = lm
         self._candidates.remove(c)
         self.get_logger().info(
@@ -869,8 +1006,9 @@ class SemanticMapMemoryNode(Node):
                 for c in self._candidates))
         if self._landmarks:
             lines.append("  landmarks: " + " | ".join(
-                "%s n=%d (%.2f,%.2f)" % (lm.landmark_id, lm.observation_count,
-                                          lm.x, lm.y)
+                "%s n=%d (%.2f,%.2f) counts=[%s]"
+                % (lm.landmark_id, lm.observation_count, lm.x, lm.y,
+                   lm.counts_summary())
                 for lm in self._landmarks.values()))
         return "\n".join(lines)
 
