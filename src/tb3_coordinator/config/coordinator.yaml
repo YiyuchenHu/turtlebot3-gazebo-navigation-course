@@ -142,6 +142,15 @@ semantic_map_memory_node:
     # its count, flipping back needs 1.5x the NEW count, so a correction
     # settles instead of oscillating. Equal counts never relabel.
     relabel_ratio:             1.5
+    # How close a disagreeing observation has to be to count as evidence.
+    # Kept at the cross-class mutex distance ON PURPOSE, not at
+    # merge_distance: this is exactly the set of observations the old code
+    # already discarded, so counting them costs the candidate layer nothing.
+    # Measured at 1.5 m over 8 acceptance runs it starved candidates instead
+    # - one run absorbed 53 chair observations while the chair candidate saw
+    # 2, and the chair was never promoted. Raise it only together with a
+    # fresh acceptance batch.
+    relabel_evidence_distance_m: 0.6
 
     # ── Gate statistics (observability only) ──────────────
     # Every rejection gate in the observation pipeline (range, TF, grid

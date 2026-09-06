@@ -472,6 +472,7 @@ class SemanticMapMemoryNode(Node):
         self.declare_parameter("bench_min_total_px", 8)
         self.declare_parameter("relabel_enabled", True)
         self.declare_parameter("relabel_ratio", 1.5)
+        self.declare_parameter("relabel_evidence_distance_m", 0.6)
         self.declare_parameter("cross_class_mutex_enabled", True)
         self.declare_parameter("cross_class_mutex_distance_m", 0.6)
         self.declare_parameter("mutex_min_observation_count", 3)
@@ -519,6 +520,8 @@ class SemanticMapMemoryNode(Node):
 
         self._relabel_enabled = self.get_parameter("relabel_enabled").value
         self._relabel_ratio = float(self.get_parameter("relabel_ratio").value)
+        self._evidence_d = float(
+            self.get_parameter("relabel_evidence_distance_m").value)
         self._mutex_enabled = self.get_parameter("cross_class_mutex_enabled").value
         self._mutex_dist = self.get_parameter("cross_class_mutex_distance_m").value
         self._mutex_min_obs = self.get_parameter("mutex_min_observation_count").value
@@ -806,13 +809,20 @@ class SemanticMapMemoryNode(Node):
         return best
 
     def _find_landmark_other_class(self, label, x, y):
-        """Nearest landmark of a DIFFERENT class within the merge radius.
+        """Nearest landmark of a DIFFERENT class within the evidence radius.
 
-        Same radius as the same-class match: an observation close enough to
-        be merged into a landmark is close enough to be evidence about what
-        that landmark actually is. Nearest wins, so when two landmarks of
-        different classes are both in range the observation is attributed to
-        the one it most likely belongs to.
+        The radius is `relabel_evidence_distance_m`, which defaults to the
+        cross-class mutex distance rather than the (much larger) merge
+        distance. That is deliberate and was measured: an observation inside
+        the mutex distance of a different-class landmark is exactly what the
+        old code threw away, so counting it as evidence costs the candidate
+        layer nothing. Widening it to the merge distance instead starves
+        candidates - over 8 acceptance runs at 1.5 m, one run absorbed 53
+        chair observations while the chair candidate saw 2, and the chair was
+        never promoted.
+
+        Nearest wins, so when two different-class landmarks are both in range
+        the observation is attributed to the one it most likely belongs to.
         """
         best = None
         best_d = float("inf")
@@ -820,7 +830,7 @@ class SemanticMapMemoryNode(Node):
             if lm.semantic_class == label:
                 continue
             d = math.hypot(lm.x - x, lm.y - y)
-            if d < self._merge_d and d < best_d:
+            if d < self._evidence_d and d < best_d:
                 best = lm
                 best_d = d
         return best
