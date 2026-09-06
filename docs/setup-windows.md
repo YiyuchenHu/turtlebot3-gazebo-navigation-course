@@ -14,7 +14,7 @@ A Docker route also exists and is described at the [bottom](#alternative-docker)
 Prefer WSL 2: it is faster, and it is the one validated for this page.
 
 > **One Windows-specific step is not optional.** Read
-> [Graphics: pick a renderer](#graphics-pick-a-renderer-required) before your
+> [Graphics: pick a renderer](#3-graphics-pick-a-renderer-required) before your
 > first run. Skipping it produces a simulation that looks healthy — Gazebo
 > runs, SLAM maps the room, Nav2 drives — while the robot's camera silently
 > returns nothing, so no landmark is ever found and every `go to …` fails.
@@ -79,7 +79,7 @@ leaves line endings alone; the setting only causes trouble if you clone with
 *Windows* Git and then build in WSL. Verify with `git config core.autocrlf` —
 empty or `false` is what you want.
 
-The detector weights ship with the repository (README → Installation → step 3):
+The detector weights ship with the repository (README → Setup by platform → step 3):
 there is nothing to download.
 
 ## 3. Graphics: pick a renderer (required)
@@ -130,9 +130,9 @@ of a session, because every downstream symptom looks like a broken detector.
 ## 4. Continue in the README
 
 From here on Windows is Ubuntu. Work through
-[README → Installation](../README.md#installation) — the apt list, the pip
+[README → Setup by platform](../README.md#setup-by-platform) — the apt list, the pip
 list and `colcon build --symlink-install`, all four steps exactly as written —
-and then [README → Running](../README.md#running--one-subsystem-per-terminal).
+and then [README → Running](../README.md#running).
 
 Each of the README's six terminals is a WSL tab. Windows Terminal opens one
 with `Ctrl-Shift-T`, or run `wsl` in any new tab. The four preparation lines
@@ -180,7 +180,7 @@ Notes on those numbers:
   runs.
 - **Nav2's documented spin-in-place wedge happens here too**, at about the
   same rate as anywhere else: 1 of 10 cold starts logged
-  `Failed to make progress` and recovered on its own. README → Troubleshooting
+  `Failed to make progress` and recovered on its own. [docs/troubleshooting.md](troubleshooting.md)
   covers it.
 - **SLAM freezes were not observed** — 10 of 10 cold starts built a growing
   map. That is too few runs to claim WSL 2 is better than the native machine's
@@ -229,8 +229,8 @@ Notes on those numbers:
   GPU, WSLg and networking state. Worth trying once when something is wedged
   in a way no ROS-level clean restart fixes. Note that it also clears `/tmp`
   and kills every running process in every distribution.
-- **Orphan processes after a crash** — README → Troubleshooting →
-  *Clean restart* works unchanged.
+- **Orphan processes after a crash** — [docs/troubleshooting.md](troubleshooting.md)
+  → *Clean restart* works unchanged.
 
 ## Alternative: Docker
 

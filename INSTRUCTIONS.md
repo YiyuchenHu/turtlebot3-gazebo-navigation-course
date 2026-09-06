@@ -13,7 +13,7 @@ Everything else in the workspace is provided and working.
 
 ### Step 1 — Install the dependencies
 
-Follow **[README.md](README.md) → Installation**, steps 1–2: apt packages and
+Follow **[README.md](README.md) → Setup by platform**, steps 1–2: apt packages and
 `ultralytics` + `torch`. The detector weights (`tb3det_yolo26n.pt`) are
 provided with the repository — nothing to download. Rebuild the detector
 package once so the weights reach `install/`:

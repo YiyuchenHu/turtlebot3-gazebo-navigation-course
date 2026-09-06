@@ -51,7 +51,7 @@ as `setup 2.bash`-style copies. Any folder outside those two is fine
 (Docker Desktop shares all of `/Users` with containers). An existing clone
 can simply be moved: `mv ~/Desktop/turtlebot3-gazebo-navigation-course ~/`.
 
-The detector weights ship with the repository (README → Installation →
+The detector weights ship with the repository (README → Setup by platform →
 step 3): there is nothing to download.
 
 ## 3. Build the image — once
@@ -63,7 +63,7 @@ docker compose build
 
 This takes roughly 10–20 minutes and downloads about 3 GB: ROS 2 Humble
 desktop, Gazebo 11, Nav2, SLAM Toolbox and the CPU build of torch — the
-exact apt and pip lists from README → Installation steps 1–2, plus a
+exact apt and pip lists from README → Setup by platform steps 1–2, plus a
 virtual desktop that you will open in the browser. Rebuild only when
 something in [`docker/`](../docker/) changes (it is quick after the first
 time: downloads are cached); the image does **not** contain the repository,
@@ -111,13 +111,13 @@ does the same without the `cd`.)
 
 ## 6. Continue in the README
 
-- **Build the workspace:** README → Installation → **step 4, Build**, run
+- **Build the workspace:** README → Setup by platform → **step 4, Build**, run
   inside a container shell. Steps 1–3 are already done by the image, and the
   conda note does not apply.
-- **Run the stack:** README → **Running — one subsystem per terminal**, T1
+- **Run the stack:** README → **Running**, T1
   to T6 in order, each in its own `docker compose exec tb3 bash` tab.
-  Everything on that page, including *Choosing a world* and *Troubleshooting*,
-  applies unchanged inside the container.
+  [docs/running-reference.md](running-reference.md) and
+  [docs/troubleshooting.md](troubleshooting.md) apply unchanged in the container.
 - [INSTRUCTIONS.md](../INSTRUCTIONS.md) applies unchanged; its Step 1 apt/pip
   part is what the image already did.
 
@@ -225,7 +225,7 @@ Beyond that, in this order: give Docker more CPUs in Settings → Resources
 - **Text you paste is going into the browser desktop** — you rarely need to
   type there at all; the terminals are on the Mac. If you do, noVNC's side
   panel (left edge) has a clipboard box.
-- **Orphan processes after a crash** — README → Troubleshooting → *Clean
+- **Orphan processes after a crash** — [docs/troubleshooting.md](troubleshooting.md) → *Clean
   restart* works unchanged inside a container shell, and
   `docker compose restart` is the bigger hammer: it restarts the whole
   container, keeping the checkout and the build.
