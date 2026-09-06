@@ -152,7 +152,7 @@ WSLg 1.0.73, `world:=warehouse_models`, discrete GPU selected as in step 3:
 |---|---|---|---|
 | `apt install` (README step 1) | 7 min 32 s | — | image build ~17 min |
 | `pip install` (README step 2) | 40 s | — | (in the image) |
-| `colcon build --symlink-install` | 88 s | — | 27 s |
+| `colcon build --symlink-install` | 89 s | — | 27 s |
 | Gazebo real-time factor | 0.96 | ≈1.0 | 0.45 |
 | Camera frames reaching the detector | 18.7 /s | — | 1–4 /s |
 | Detector output rate, full stack | 8.1 /s | — | — |
@@ -249,7 +249,29 @@ you and the windows.
    its step 3 onwards — same `docker/` directory, same
    `docker compose build` / `up -d`, same desktop at
    <http://localhost:6080/>, same `docker compose exec tb3 bash` per README
-   terminal. The compose file needs no Windows-specific changes; the
+   terminal. **The compose file needs no Windows-specific changes**; the
    `platform: linux/amd64` line that means Rosetta emulation on Apple Silicon
-   is simply native here, so the image builds and runs faster than it does on
-   a Mac.
+   is simply native here, so the image builds and runs faster than on a Mac.
+
+Measured on the same reference machine, for comparison with the WSL 2 table
+above: `docker compose build` 10 min 33 s (Mac: ~17 min), `colcon build`
+inside the container 25 s, real-time factor 0.86 with the full stack up,
+6.2 camera frames per second, 5.9 detections per second. The container has no
+trouble with the camera — it renders on its own software OpenGL inside the
+virtual desktop and never touches the WSLg D3D12 path, so the failure in
+step 3 does not apply here. What you pay for that is throughput and memory:
+the WSL VM held 22.4 GB resident (`vmmemWSL`) with Docker Desktop running,
+against 5.0 GB for the WSL 2 native route.
+
+Two Windows-specific things to know if you take this route:
+
+- **`docker` has to be on `PATH` inside WSL, and only the checkbox in step 2
+  puts it there.** Enabling the integration by hand-editing Docker Desktop's
+  `settings.json` is not enough: bind mounts then resolve against the wrong
+  filesystem and your checkout shows up **empty** inside the container.
+- **The container runs as root**, so a `colcon build` done inside it leaves
+  root-owned `build/`, `install/` and `log/` directories in your WSL
+  checkout. A later native build in WSL cannot delete them
+  (`rm: cannot remove ...: Permission denied`); clear them with
+  `sudo rm -rf build install log` and rebuild. Pick one route and stay on it,
+  or clean in between.
