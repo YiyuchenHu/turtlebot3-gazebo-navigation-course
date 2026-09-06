@@ -20,7 +20,7 @@ results and advanced debugging notes are in **[NOTES.md](NOTES.md)**.
 |---|---|---|
 | **Ubuntu 22.04** *(default — the validated setup)* | [Installation](#installation), then [Running](#running--one-subsystem-per-terminal) below | native ROS 2 Humble + Gazebo Classic 11 |
 | **macOS** (Apple Silicon or Intel) | [docs/setup-macos.md](docs/setup-macos.md) | a Docker container with this checkout mounted and Gazebo/RViz in a browser tab, then the same Build and Running sections |
-| **Windows 10/11** | [docs/setup-windows.md](docs/setup-windows.md) | Docker Desktop + WSL 2, the same container as macOS |
+| **Windows 10/11** | [docs/setup-windows.md](docs/setup-windows.md) | WSL 2 + Ubuntu 22.04 running the same native stack as above, then the same Installation and Running sections (Docker is a documented fallback) |
 
 ## Demo
 
@@ -35,9 +35,9 @@ Two clips are planned and land in `docs/media/`:
 
 ## System requirements
 
-- Ubuntu 22.04 with **ROS 2 Humble** and **Gazebo Classic 11** (macOS and
-  Windows run the same stack in a Docker container — see
-  [Choose your platform](#choose-your-platform))
+- Ubuntu 22.04 with **ROS 2 Humble** and **Gazebo Classic 11** (Windows runs
+  the same stack natively under WSL 2; macOS runs it in a Docker container —
+  see [Choose your platform](#choose-your-platform))
 - A machine that can run Gazebo + Nav2 + SLAM comfortably (4+ CPU cores recommended)
 - `tmux`, for `scripts/acceptance_run.sh` only
 
@@ -126,10 +126,13 @@ Gazebo/RViz windows in a browser tab, then sends you back to step 4 above and
 to [Running](#running--one-subsystem-per-terminal). The Dockerfile and compose
 file it uses live in [`docker/`](docker/).
 
-### Windows (Docker)
+### Windows (WSL 2)
 
-See [docs/setup-windows.md](docs/setup-windows.md): Docker Desktop + WSL 2,
-running the same image and compose file as macOS.
+See [docs/setup-windows.md](docs/setup-windows.md). It installs WSL 2 with
+Ubuntu 22.04, has you clone into the Linux home directory, and settles one
+Windows-specific graphics setting that the camera sensor needs; from there
+steps 1-4 above and [Running](#running--one-subsystem-per-terminal) apply
+unchanged. The same Docker image macOS uses is documented there as a fallback.
 
 ## Running — one subsystem per terminal
 
