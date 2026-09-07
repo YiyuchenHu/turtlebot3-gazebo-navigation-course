@@ -67,14 +67,28 @@ chair never appears as `chair_0`; instead a second trash-can marker
 (`trash_can_1`) sits where the chair is, and `go to chair` ends in
 `query failed: no active chair in memory`.
 
-**This is a known issue, not your code.** From some viewpoints the shipped
-detector labels the chair as a trash can with high confidence; if that wrong
-label reaches the promotion threshold first, the semantic map memory keeps
-it and suppresses the chair for the rest of the run. It happened in 0 of 8
-reference runs with the shipped settings, so it is rare, but it does occur.
-Details and the mechanism are in [NOTES.md §8.1](../NOTES.md).
+**This is a known detector issue, not your code.** From some viewpoints the
+shipped detector labels the chair as a trash can with high confidence, and if
+that wrong label reaches the promotion threshold first it is what gets
+promoted. It happened in 0 of 8 reference runs with the shipped settings, so
+it is rare, but it does occur. Details are in [NOTES.md §8.1](../NOTES.md).
 
-**Fix.** Run the clean-restart procedure above and start a fresh round; the
-map and landmarks are rebuilt and the chair is normally found within about
-two minutes. Do not raise `candidate_timeout` to work around it — that makes
-the ghost more likely, not less.
+**It now corrects itself — wait before restarting.** A landmark keeps a count
+per label, so the chair observations that keep arriving are recorded against
+the ghost instead of being thrown away, and the landmark is renamed once the
+chair count is 1.5x the trash-can count and past chair's own threshold of 12.
+Watch T3 for the line:
+
+```text
+[relabel] relabeled trash_can_0 -> chair_0 at (-1.34, 2.31): chair 50 vs trash_can 33
+```
+
+The RViz marker changes colour and text at the same moment, and `go to chair`
+works from then on. The `[gate_summary]` block prints the running counts
+(`counts=[chair:45,trash_can:33]`) so you can watch the evidence build.
+
+**If it does not correct.** The correction needs the robot to keep seeing the
+chair, so it will not happen while the robot is exploring elsewhere. If the
+counts are not moving after the robot has driven past the chair a few times,
+run the clean-restart procedure above. Do not raise `candidate_timeout` to
+work around this — that makes the ghost more likely, not less.

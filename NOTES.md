@@ -951,13 +951,59 @@ the two candidates does not help: at this confusion rate the wrong label can
 out-count a chair candidate that has just restarted, and the promotion-time
 comparison never held a single promotion in eight runs.
 
-**Two candidate fixes, neither done.** (1) A per-location label vote: keep
-the counts of *all* labels observed at a position together, promote only the
-majority label, require a majority share of about 0.6, and let counts decay
-on expiry rather than reset. (2) Fix the detector: the confusing chair
-viewpoints are in the 2026-09-03 acceptance logs; add them (and negatives) to
-the training set. Until one of these lands, the symptom is visible in RViz as
-a `trash_can` marker on the chair, and a restart clears it.
+**Two candidate fixes.** (1) A per-location label vote: keep the counts of
+*all* labels observed at a position together, promote only the majority
+label. (2) Fix the detector: the confusing chair viewpoints are in the
+2026-09-03 acceptance logs; add them (and negatives) to the training set.
+(1) is now implemented at the landmark layer — see §8.1.1. (2) is still open,
+and is the real fix: relabelling repairs the symptom after the fact, it does
+not stop the detector confusing the two objects in the first place.
+
+#### 8.1.1 The correction mechanism
+
+The damaging half of the old behaviour was not the wrong promotion, it was
+what came after: the landmark-level cross-class mutex **discarded** every
+later chair observation, so the mistake suppressed its own evidence. Measured
+2026-09-05, a `trash_can_1` on the chair rejected 86 `chair` observations and
+`go to chair` could not succeed for the rest of the run.
+
+Each landmark now carries `class_counts`, one observation count per detector
+label. An observation inside the merge radius whose label disagrees is
+recorded against the landmark instead of being dropped (`cross_evidence` in
+the gate summary), and `should_relabel()` renames the landmark when a
+challenger clears **both** gates:
+
+* `challenger >= relabel_ratio * current` (`relabel_ratio` 1.5), and
+* `challenger >= that label's own min_observations` (12 for chair and
+  trash_can, 8 for person).
+
+Equal counts never relabel. Because the losing label keeps its count,
+flipping back needs 1.5x the *new* count, so a correction settles rather than
+oscillating — on the 0905 timeline (12 trash_can, then chair) the switch
+lands on the 18th chair observation, and going back would need 129.
+
+What deliberately did **not** change:
+
+* **The candidate layer**, including the candidate half of the mutex. That
+  gate is what stops label swaps being promoted at all, and it held in every
+  validation run; relabelling is the safety net for when it does not.
+* **Position**, which is still averaged over observations of the current
+  label only. A disagreeing observation is evidence about *what* the landmark
+  is, not about *where* it is; letting it move the position would drag the
+  landmark towards whatever else is nearby.
+* **One landmark per location.** A second landmark is not created for the
+  challenging class; the existing one is renamed, its old id retired and a
+  new id issued from the new class's sequence (`trash_can_1` -> `chair_0`).
+
+The two thresholds are what keep this from firing on ordinary cross-class
+noise, and cross-class evidence is not rare — it accumulates on every
+landmark. In a normal run the counts are lopsided in the right direction and
+nothing happens: the first run of the 2026-09-06 acceptance batch, shipped
+configuration, ended with `trash_can_0 counts=[trash_can:80,chair:11,person:2]`
+and `chair_0 counts=[chair:48,trash_can:15,person:1]` — every challenger short
+of both gates, no relabel. Same-class evidence is never a challenger, so the
+several `person` landmarks in `warehouse_models_person` cannot rename each
+other however much evidence they gather.
 
 ---
 
